@@ -20,6 +20,7 @@ class DataHandler : public QObject
 
         bool initializeRun(std::string dir, int events_to_process);
 
+        int checkForExistingFiles(std::string dir);
         bool setOutputFile(std::string output_dir);
         bool checkRootFile(std::string filename);
 
@@ -29,10 +30,13 @@ class DataHandler : public QObject
         std::string m_output_fullfilename;
         int n_total_events_to_process;
 
+        int m_current_run_number;
+
         DaqServer* m_server;
 
     signals :
         void badOutputDir();
+        void updateRunNumber(int);
 
     public slots :
         void endRun();

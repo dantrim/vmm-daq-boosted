@@ -25,7 +25,7 @@ class DaqServer : public QObject
         explicit DaqServer(QObject *parent=0);
         virtual ~DaqServer(){};
 
-        bool init();
+        bool init(std::string filename, int run_number);
 
         void listen();
         //void WorkerThread(boost::shared_ptr<boost::asio::io_service> io);
@@ -40,6 +40,7 @@ class DaqServer : public QObject
 
     private :
         int m_daq_port;
+        int m_run_number;
         int m_thread_count;
         boost::thread_group m_thread_group;
 

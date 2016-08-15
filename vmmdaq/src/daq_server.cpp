@@ -19,7 +19,7 @@ DaqServer::DaqServer(QObject* parent) :
     std::cout << "DaqServer::DaqServer()" << std::endl;
 }
 
-bool DaqServer::init()
+bool DaqServer::init(std::string filename, int run_number)
 {
  //   if(m_io_service) {
  //       m_io_service->reset();
@@ -46,6 +46,9 @@ bool DaqServer::init()
     m_socket = boost::shared_ptr<boost::asio::ip::udp::socket>(new ip::udp::socket(*m_io_service, ip::udp::endpoint(ip::udp::v4(), m_daq_port)));
 
     m_event_builder = boost::shared_ptr<EventBuilder>(new EventBuilder());
+    if(!m_event_builder->init(filename, run_number)) 
+        return false;
+    m_run_number = run_number;
 
     if(!m_socket->is_open()) {
         std::cout << "DaqServer::init    ERROR socket not setup at port: " << m_daq_port << std::endl;

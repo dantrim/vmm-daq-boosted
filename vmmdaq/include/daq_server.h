@@ -25,14 +25,14 @@ class DaqServer : public QObject
         explicit DaqServer(QObject *parent=0);
         virtual ~DaqServer(){};
 
-        bool init(std::string filename, int run_number);
+        bool init(std::string filename, int run_number, int num_events_to_process);
 
         void listen();
         //void WorkerThread(boost::shared_ptr<boost::asio::io_service> io);
 
-        void handle_data();
+        void handle_data(int& daq_count);
 
-        void decode_data(const boost::system::error_code error, std::size_t size_);
+        void decode_data(int& daq_count, const boost::system::error_code error, std::size_t size_);
 
         void stop_listening();
 
@@ -41,6 +41,8 @@ class DaqServer : public QObject
     private :
         int m_daq_port;
         int m_run_number;
+        int m_total_events_to_process;
+        int n_daqCount;
         int m_thread_count;
         boost::thread_group m_thread_group;
 
@@ -55,6 +57,12 @@ class DaqServer : public QObject
         boost::atomic<int> m_message_count;
 
         boost::shared_ptr<EventBuilder> m_event_builder;
+
+    signals :
+        void eventCountReached();
+
+    public slots :
+        //void updateCounter();
 
         
 

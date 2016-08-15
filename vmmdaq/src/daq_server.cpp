@@ -9,6 +9,10 @@ boost::mutex global_stream_lock;
 DaqServer::DaqServer(QObject* parent) :
     QObject(parent),
     m_daq_port(1234),
+    m_run_number(0),
+    m_total_events_to_process(-1),
+    //n_daqCount(new int()),
+    n_daqCount(0),
     m_thread_count(3),
     m_socket(NULL),
     m_io_service(NULL),
@@ -19,7 +23,7 @@ DaqServer::DaqServer(QObject* parent) :
     std::cout << "DaqServer::DaqServer()" << std::endl;
 }
 
-bool DaqServer::init(std::string filename, int run_number)
+bool DaqServer::init(std::string filename, int run_number, int num_events_to_process)
 {
  //   if(m_io_service) {
  //       m_io_service->reset();
@@ -49,6 +53,7 @@ bool DaqServer::init(std::string filename, int run_number)
     if(!m_event_builder->init(filename, run_number)) 
         return false;
     m_run_number = run_number;
+    m_total_events_to_process = num_events_to_process; 
 
     if(!m_socket->is_open()) {
         std::cout << "DaqServer::init    ERROR socket not setup at port: " << m_daq_port << std::endl;
@@ -56,6 +61,7 @@ bool DaqServer::init(std::string filename, int run_number)
     }
     return true;
 }
+
 void WorkerThread(boost::shared_ptr< boost::asio::io_service> io_service)
 {
     global_stream_lock.lock();
@@ -74,38 +80,44 @@ void DaqServer::listen()
         m_thread_group.create_thread(boost::bind(WorkerThread, m_io_service));
     }
 
-    m_strand->post(boost::bind(&DaqServer::handle_data, this)); 
+    m_strand->post(boost::bind(&DaqServer::handle_data, this, boost::ref(n_daqCount))); 
 
 }
 
-void DaqServer::handle_data()
+void DaqServer::handle_data(int& daq_counter)
 {
+
+    // stop data taking when event count is reached, if event count is <0 will
+    // ignore
+    if( (n_daqCount >= m_total_events_to_process) && m_total_events_to_process>=0) {
+        emit eventCountReached();
+    }
 
     m_socket->async_receive_from(
         boost::asio::buffer(m_data_buffer), m_remote_endpoint,
         boost::bind(&DaqServer::decode_data, this,
+        boost::ref(daq_counter),
         boost::asio::placeholders::error,
         boost::asio::placeholders::bytes_transferred)
     );
 
 }
 
-void DaqServer::decode_data(const boost::system::error_code error, std::size_t size_)
+void DaqServer::decode_data(int& daq_counter, const boost::system::error_code error, std::size_t size_)
 {
-
     std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
               << " incoming data packet from (IP, port) : ("
               << m_remote_endpoint.address().to_string() << ", "
               << m_remote_endpoint.port() << ") of size: " << size_ << " bytes" << std::endl;
     std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
-              << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << std::endl;
+              << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
     std::string msg(m_data_buffer.data());
-    m_event_builder->print_data(msg);
+    m_event_builder->print_data(msg, daq_counter);
     m_message_count.fetch_add(1, boost::memory_order_relaxed);
 
 
     // keep listening (give the service more work)
-    handle_data();
+    handle_data(daq_counter);
 }
 
 void DaqServer::stop_listening()

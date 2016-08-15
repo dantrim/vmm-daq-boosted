@@ -7,28 +7,52 @@
 #include <iostream>
 #include <vector>
 
+//boost
+#include <boost/shared_ptr.hpp>
+
 //ROOT
 class TFile;
 class TTree;
 class TBranch;
 
-class EventBuilder
+class EventBuilder 
 {
+
     public :
         EventBuilder();
         virtual ~EventBuilder(){};
 
         // initialize the output file and trees
         bool init(std::string filename, int run_number);
+        //void loadCounter(boost::shared_ptr<int> counter);
+        void resetCounter() { n_daqCount = 0; }
+        int getDAQCounts() { return (n_daqCount); }
+
+        // obtain the run properties
+        void fillRunProperties(double gain, int tac_slope, int peak_time, int dac_threshold,
+                int dac_pulser, int angle, double tp_skew);
+
         void setupOutputTrees();
 
-        void print_data(std::string msg);
+        bool writeNtuple() { return m_writeNtuple; }
+        bool calibrationRun() { return m_calibRun; }
+
+        void print_data(std::string msg, int& daq_counter);
 
         void clearData();
 
     private :
         std::string m_output_rootfilename;
         int m_run_number;
+
+        bool m_writeNtuple; // flag for whether we are writing an output ntuple (ROOT) file
+        bool m_calibRun; // this is a calibration run
+
+        // event counter
+        //boost::shared_ptr< int > n_daqCount;
+        int n_daqCount;
+        
+
 
         // the file to hold the output data ntuple
         TFile* m_daqRootFile;
@@ -44,12 +68,12 @@ class EventBuilder
         int m_runNumber;
         int m_tacSlope;
         int m_peakTime;
-        int m_daqCounts;
+        int m_dacCounts;
         int m_pulserCounts;
         double m_tpSkew; // ns
         int m_angle;
 
-        // vmm2 event data (on the fly containers)
+        // vmm event data (on the fly containers)
         std::vector<int> _pdo;
         std::vector<int> _tdo;
         std::vector<int> _bcid;
@@ -89,7 +113,7 @@ class EventBuilder
         int m_peakTime_calib;
         int m_dacCounts_calib;
         double m_tpSkew_calib;
-        std::vector< std::vector<int> > m_neighboar_calib;
+        std::vector< std::vector<int> > m_neighbor_calib;
 
         ///////////////////////////////////////////////////////////////
         ///////////////////////////////////////////////////////////////
@@ -99,7 +123,7 @@ class EventBuilder
 
         // the TTrees for the various data
         TTree* m_runProperties_tree; // global run properties tree
-        TTree* m_vmm2_tree; // vmm2 event data
+        TTree* m_vmm_tree; // vmm event data
         TTree* m_art_tree; // tree for holding ART data
 
         // branches for the run properties tree
@@ -113,7 +137,7 @@ class EventBuilder
         TBranch *br_angle; // incident angle (relative angle of chamber and beam)
         TBranch *br_calibrationRun; // flag for if the run is calibration
 
-        // branches for the vmm2 tree
+        // branches for the vmm tree
         TBranch *br_eventNumberFAFA;
         TBranch *br_triggerTimeStamp;
         TBranch *br_triggerCounter;
@@ -134,13 +158,14 @@ class EventBuilder
         TBranch *br_gainCalib;
         TBranch *br_peakTimeCalib;
         TBranch *br_threshCalib;
-        TBranch *br_s6TPskewCalib;
+        TBranch *br_TPskewCalib;
         TBranch *br_calibRun;
         TBranch *br_neighborCalib;
 
         // branches for the ART tree
         TBranch *br_art;
         TBranch *br_artFlag;
+
 };
 
 #endif

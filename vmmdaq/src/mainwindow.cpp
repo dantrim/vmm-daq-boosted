@@ -28,6 +28,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(this, SIGNAL(stopDataGathering()), m_dataHandler, SLOT(endRun()));
 
+    connect(m_dataHandler, SIGNAL(updateCountsSend(int)), this, SLOT(updateCounts(int)));
+
 
 }
 
@@ -35,6 +37,11 @@ MainWindow::~MainWindow()
 {
     delete ui;
     delete m_dataHandler;
+}
+
+void MainWindow::updateCounts(int counts)
+{
+    ui->eventReceive_text->setText(QString::number(counts));
 }
 
 void MainWindow::badOutputDir()

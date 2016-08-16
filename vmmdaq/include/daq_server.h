@@ -60,6 +60,7 @@ class DaqServer : public QObject
 
     signals :
         void eventCountReached();
+        void updateCounts(int); // signal to update the GUI counter
 
     public slots :
         //void updateCounter();

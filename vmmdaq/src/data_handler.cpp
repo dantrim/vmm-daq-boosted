@@ -48,10 +48,16 @@ bool DataHandler::initializeRun(std::string output_dir, int events_to_process)
     m_server = new DaqServer();
     // stop data taking when the event count is reached
     connect(m_server, SIGNAL(eventCountReached()), this, SLOT(endRun()));
+    connect(m_server, SIGNAL(updateCounts(int)), this, SLOT(updateCounts(int)));
     if(!m_server->init(m_output_fullfilename, m_current_run_number, events_to_process)) return false;
     m_server->listen();
 
     return true;
+}
+
+void DataHandler::updateCounts(int counts)
+{
+    emit updateCountsSend(counts);
 }
 
 void DataHandler::endRun()

@@ -30,6 +30,7 @@ public slots :
     void stopRun();
     void badOutputDir();
     void resetCounter();
+    void updateCounts(int);
 };
 
 #endif // MAINWINDOW_H

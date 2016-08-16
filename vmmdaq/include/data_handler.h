@@ -37,8 +37,10 @@ class DataHandler : public QObject
     signals :
         void badOutputDir();
         void updateRunNumber(int);
+        void updateCountsSend(int);
 
     public slots :
+        void updateCounts(int);
         void endRun();
 
 };

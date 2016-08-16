@@ -93,6 +93,8 @@ void DaqServer::handle_data(int& daq_counter)
         emit eventCountReached();
     }
 
+    if( ( (n_daqCount % 100) == 0) ) emit updateCounts(n_daqCount);
+
     m_socket->async_receive_from(
         boost::asio::buffer(m_data_buffer), m_remote_endpoint,
         boost::bind(&DaqServer::decode_data, this,

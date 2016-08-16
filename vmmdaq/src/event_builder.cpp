@@ -3,14 +3,21 @@
 //std/stl
 #include <string>
 #include <iostream>
+#include <bitset>
+#include <inttypes.h>
+#include <sstream>
 
 //boost
 #include <boost/thread.hpp>
+#include <boost/asio.hpp>
+#include <boost/foreach.hpp>
 
 //ROOT
 #include "TFile.h"
 #include "TTree.h"
 #include "TBranch.h"
+
+boost::mutex stream_lock;
 
 EventBuilder::EventBuilder() :
     m_output_rootfilename(""),
@@ -162,6 +169,29 @@ void EventBuilder::fillRunProperties(double gain, int tac_slope, int peak_time,
         m_runProperties_tree->Write("", TObject::kOverwrite);
         delete m_runProperties_tree;
     }
+}
+void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, size_t num_bytes, int& counter)
+{
+    //BOOST_FOREACH(int x : datagram) {
+    //std::vector<int> datagram_vector(datagram.begin(), datagram.end());
+
+    std::vector<uint32_t> datagram_vector(datagram.begin(), datagram.begin()+num_bytes/sizeof(uint32_t));
+    
+    std::stringstream sx;
+    sx << counter << " ";
+    for(const auto& x : datagram_vector) {
+        sx << std::bitset<32>(x) << " ";
+        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << x << std::endl;
+        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << std::bitset<32>(x) << std::endl;
+    }
+    sx << std::bitset<32>(8);
+    stream_lock.lock();
+    std::cout << sx.str() << std::endl;
+    stream_lock.unlock();
+
+    //incrememnt counter
+    counter++;
+
 }
 
 void EventBuilder::print_data(std::string msg, int& counter)

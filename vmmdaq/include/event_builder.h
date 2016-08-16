@@ -9,11 +9,14 @@
 
 //boost
 #include <boost/shared_ptr.hpp>
+#include <boost/array.hpp>
 
 //ROOT
 class TFile;
 class TTree;
 class TBranch;
+
+#define MAXBUFLEN 65507
 
 class EventBuilder 
 {
@@ -38,6 +41,8 @@ class EventBuilder
         bool calibrationRun() { return m_calibRun; }
 
         void print_data(std::string msg, int& daq_counter);
+
+        void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter);
 
         void clearData();
 

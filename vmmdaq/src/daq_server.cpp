@@ -113,8 +113,9 @@ void DaqServer::decode_data(int& daq_counter, const boost::system::error_code er
               << m_remote_endpoint.port() << ") of size: " << size_ << " bytes" << std::endl;
     std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
               << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
-    std::string msg(m_data_buffer.data());
-    m_event_builder->print_data(msg, daq_counter);
+    //std::string msg(m_data_buffer.data());
+    m_event_builder->decode_event(m_data_buffer, size_, daq_counter);
+    //m_event_builder->print_data(msg, daq_counter);
     m_message_count.fetch_add(1, boost::memory_order_relaxed);
 
 

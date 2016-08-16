@@ -14,7 +14,7 @@
 //nsw
 #include "event_builder.h"
 
-#define MAXBUFLEN 65507
+//#define MAXBUFLEN 65507
 
 
 class DaqServer : public QObject
@@ -46,7 +46,7 @@ class DaqServer : public QObject
         int m_thread_count;
         boost::thread_group m_thread_group;
 
-        boost::array<char, MAXBUFLEN> m_data_buffer;
+        boost::array<uint32_t, MAXBUFLEN> m_data_buffer;
 
         boost::shared_ptr<boost::asio::ip::udp::socket> m_socket;
         boost::shared_ptr<boost::asio::io_service> m_io_service;

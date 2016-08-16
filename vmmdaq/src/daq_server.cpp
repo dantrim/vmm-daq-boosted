@@ -8,12 +8,12 @@ boost::mutex global_stream_lock;
 
 DaqServer::DaqServer(QObject* parent) :
     QObject(parent),
-    m_daq_port(1234),
+    m_daq_port(1236),
     m_run_number(0),
     m_total_events_to_process(-1),
     //n_daqCount(new int()),
     n_daqCount(0),
-    m_thread_count(3),
+    m_thread_count(1),
     m_socket(NULL),
     m_io_service(NULL),
     m_idle_work(NULL),
@@ -107,16 +107,19 @@ void DaqServer::handle_data(int& daq_counter)
 
 void DaqServer::decode_data(int& daq_counter, const boost::system::error_code error, std::size_t size_)
 {
-    std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
-              << " incoming data packet from (IP, port) : ("
-              << m_remote_endpoint.address().to_string() << ", "
-              << m_remote_endpoint.port() << ") of size: " << size_ << " bytes" << std::endl;
-    std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
-              << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
+    //std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
+    //          << " incoming data packet from (IP, port) : ("
+    //          << m_remote_endpoint.address().to_string() << ", "
+    //          << m_remote_endpoint.port() << ") of size: " << size_ << " bytes" << std::endl;
+    //std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
+    //          << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
     //std::string msg(m_data_buffer.data());
-    m_event_builder->decode_event(m_data_buffer, size_, daq_counter);
+    std::string ip_ = m_remote_endpoint.address().to_string();
+    if(size_) {
+        m_event_builder->decode_event(m_data_buffer, size_, daq_counter, ip_);
     //m_event_builder->print_data(msg, daq_counter);
-    m_message_count.fetch_add(1, boost::memory_order_relaxed);
+        m_message_count.fetch_add(1, boost::memory_order_relaxed);
+    }
 
 
     // keep listening (give the service more work)

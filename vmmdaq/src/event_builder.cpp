@@ -1,4 +1,5 @@
 #include "event_builder.h"
+#include "bit_manip.h"
 
 //std/stl
 #include <string>
@@ -49,10 +50,6 @@ bool EventBuilder::init(std::string filename, int run_number)
 
     return true;
 }
-//void EventBuilder::loadCounter(boost::shared_ptr<int> counter)
-//{
-//    n_daqCount = counter;
-//}
 
 void EventBuilder::setupOutputTrees()
 {
@@ -170,27 +167,135 @@ void EventBuilder::fillRunProperties(double gain, int tac_slope, int peak_time,
         delete m_runProperties_tree;
     }
 }
-void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, size_t num_bytes, int& counter)
+void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, size_t num_bytes,
+    int& counter, std::string& ip_string)
 {
-    //BOOST_FOREACH(int x : datagram) {
-    //std::vector<int> datagram_vector(datagram.begin(), datagram.end());
-
-    std::vector<uint32_t> datagram_vector(datagram.begin(), datagram.begin()+num_bytes/sizeof(uint32_t));
-    
-    std::stringstream sx;
-    sx << counter << " ";
-    for(const auto& x : datagram_vector) {
-        sx << std::bitset<32>(x) << " ";
-        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << x << std::endl;
-        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << std::bitset<32>(x) << std::endl;
+    std::cout << "EventBuilder::decode_event    Incoming packet: " << datagram.data() << "  from: " << ip_string << std::endl;
+    std::vector<uint32_t> datagram_vector_tmp(datagram.begin(), datagram.begin()+num_bytes/sizeof(uint32_t));
+    std::vector<uint32_t> datagram_vector; 
+    #warning check that reversal is needed in real use case
+    for(const auto& data : datagram_vector_tmp) {
+        datagram_vector.push_back(bits::endian_swap32()(data));
     }
-    sx << std::bitset<32>(8);
     stream_lock.lock();
-    std::cout << sx.str() << std::endl;
+    std::cout << "tmp size: " << datagram_vector_tmp.size() << "   rev size: " << datagram_vector.size() << std::endl;
     stream_lock.unlock();
 
-    //incrememnt counter
-    counter++;
+    uint32_t frame_counter = datagram_vector.at(0);
+
+    while(true) {
+        if(frame_counter == 0xffffffff) break;
+        stream_lock.lock();
+        std::cout << "frame [" << counter << "] : " << std::hex << frame_counter << std::endl;
+        stream_lock.unlock();
+
+        std::stringstream event_data_str;
+        for(const auto& x : datagram_vector) {
+            event_data_str << std::bitset<32>(x);
+        }
+        std::string full_event_data_str = event_data_str.str();
+        //std::cout << " >> full event packet: " << full_event_data_str << std::endl;
+        //stream_lock.lock();
+        //std::cout << "0: " << std::bitset<32>(datagram_vector.at(0)) << std::endl;
+        //std::cout << "1: " << std::bitset<32>(datagram_vector.at(1)) << std::endl;
+        //stream_lock.unlock();
+        uint32_t trig_counter = datagram_vector.at(0);
+        uint32_t vmm_id = datagram_vector.at(1) & 0xff;
+        uint32_t trig_timestamp = ( datagram_vector.at(1) & 0xffff00 ) >> 8;  
+        #warning what are the precision bits?
+        uint32_t precision = ( datagram_vector.at(1) & 0xff000000 ) >> 24;
+
+        if(true /*dbg*/) {
+            std::stringstream sx;
+            sx << "********************************************************\n"
+               << " Data from board #  : MAPPING NOT YET ADDED \n"
+               << "   > IP             : " << ip_string << "\n"
+               << "   > VMM ID         : " <<  vmm_id << "\n"
+               << "   > Data           : " << full_event_data_str << "\n"
+               << "********************************************************";
+            stream_lock.lock();
+            std::cout << sx.str() << std::endl;
+            stream_lock.unlock();
+        }
+
+        for(int i = 2; i < (int)datagram_vector.size(); ) {
+            frame_counter = datagram_vector.at(i);
+            if(frame_counter == 0xffffffff) break;
+
+            uint32_t data0 = datagram_vector.at(i);
+            uint32_t data1 = datagram_vector.at(i+1);
+
+
+            // ----------- pdo ----------- //
+            uint32_t pdo = (data0 & 0x3ff);
+
+            // ----------- gray ---------- //
+            uint32_t gray = (data0 & 0x3ffc00) >> 10;
+
+            // ----------- tdo ----------- //
+            uint32_t tdo = (data0 & 0x3fc00000) >> 22;
+            
+
+            // ---------- flag ----------- //
+            uint32_t flag = (data1 & 0x1);
+
+            // ------- threshold --------- //
+            uint32_t threshold = (data1 & 0x2) >> 1;
+
+            // ------  vmm channel ------ //
+            uint32_t vmm_channel = (data1 & 0xfc) >> 2;
+
+            if(true /*verbose*/) {
+                std::stringstream sx;
+                sx << "[" << counter << ", " << i << "] pdo   : " <<  (pdo) <<     "    tdo  : " << tdo << "\n"
+                   << "                                 gray  : " <<  (gray) <<    "   flag  : " << flag << "\n"
+                   << "                                 thresh: " <<  (threshold)  << " vmmchan : " << vmm_channel;
+                stream_lock.lock();
+                std::cout << sx.str() << std::endl;
+                stream_lock.unlock();
+
+            }
+
+            // move 2*32 bits forward 
+            i += 2;
+            
+            
+        }
+
+
+    } // while (continues until hitting the trailer)
+
+    if(frame_counter == 0xffffffff) {
+
+        //update daq counter
+        counter++;
+
+        /*clear data*/
+
+    } // at trailer
+
+    stream_lock.unlock();
+    
+//    std::stringstream sx;
+//    sx << counter << "      ";
+//    for(const auto& x : datagram_vector) {
+//        sx << std::bitset<32>(x) << " ";
+//        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << x << std::endl;
+//        //std::cout << "blah: datagram size: " << datagram.size() << " datagram_vector size: " <<  datagram_vector.size() << "  " << std::bitset<32>(x) << std::endl;
+//    }
+//    std::stringstream rev;
+//    rev << counter << " rev: ";
+//    for(const auto& x : datagram_vector) {
+//        rev << std::bitset<32>(bits::reverse_32()(x)) << " ";
+//    }
+//    
+//    stream_lock.lock();
+//    std::cout << sx.str() << std::endl;
+//    std::cout << rev.str() << std::endl;
+//    stream_lock.unlock();
+//
+//    //incrememnt DAQ counter
+//    counter++;
 
 }
 

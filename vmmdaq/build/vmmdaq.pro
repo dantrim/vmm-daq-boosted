@@ -93,6 +93,7 @@ SOURCES += $$sourcepath/main.cpp\
 HEADERS  += $$includepath/mainwindow.h\
             $$includepath/data_handler.h\
             $$includepath/daq_server.h\
-            $$includepath/event_builder.h
+            $$includepath/event_builder.h\
+            $$includepath/bit_manip.h
 
 FORMS    += $$sourcepath/mainwindow.ui

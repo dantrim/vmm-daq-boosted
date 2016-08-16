@@ -42,7 +42,7 @@ class EventBuilder
 
         void print_data(std::string msg, int& daq_counter);
 
-        void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter);
+        void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter, std::string& ip_string);
 
         void clearData();
 

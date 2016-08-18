@@ -23,6 +23,8 @@ linux {
     includepath="../include"
     boostinclude="/Users/dantrim/boost_1_60_0/"
     boostlib="/usr/local/opt/boost/lib"
+ #   rootinclude="$(ROOTSYS)/include/root/"
+ #   rootlib="$(ROOTSYS)/lib/root/"
     imagepath="../images"
 }
 
@@ -55,6 +57,9 @@ win32:LIBS += -L$(ROOTSYS)/lib -llibCint -llibRIO -llibNet \
        -llibHist -llibGraf -llibGraf3d -llibGpad -llibTree \
        -llibRint -llibPostscript -llibMatrix -llibPhysics \
        -llibGui -llibRGL -llibMathCore
+#else:LIBS += -L$$rootlib -lHist -lGraf -lGraf3d -lGpad -lTree \
+#       -lRint -lPostscript -lMatrix -lPhysics \
+#       -lGui -lMathCore #-lRGL -lMathCore
 else:LIBS += -L$(ROOTSYS)/lib -lCore -lCint -lRIO -lNet \
        -lHist -lGraf -lGraf3d -lGpad -lTree \
        -lRint -lPostscript -lMatrix -lPhysics \
@@ -64,8 +69,12 @@ linux {
     LIBS += -L$$boostlib -lboost_thread -lboost_filesystem -lboost_system -lrt
 
 } else {
-    LIBS +=  -L$$boostlib -lboost_thread-mt -lboost_filesystem  -lboost_system
+    LIBS +=  -L$$boostlib -lboost_thread-mt -lboost_filesystem  -lboost_system -lboost_chrono
 }
+
+LIBS += -L./objects -lMylib
+
+
 linux {
     QMAKE_CXXFLAGS += -std=c++11
 } else {
@@ -78,6 +87,8 @@ INCLUDEPATH += $$includepath
 DEPENDPATH  += $$includepath
 INCLUDEPATH += $$boostinclude
 DEPENDPATH  += $$boostinclude
+#INCLUDEPATH += $$rootinclude
+#DEPENDPATH  += $$rootinclude
 
 OBJECTS_DIR += ./objects/
 MOC_DIR     += ./moc/

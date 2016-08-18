@@ -34,6 +34,8 @@ class DataHandler : public QObject
 
         DaqServer* m_server;
 
+        int times_updated;
+
     signals :
         void badOutputDir();
         void updateRunNumber(int);

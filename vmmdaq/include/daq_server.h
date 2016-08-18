@@ -37,6 +37,9 @@ class DaqServer : public QObject
         void stop_listening();
 
         void stop_server();
+        bool is_stopped();
+
+        void write_output();
 
     private :
         int m_daq_port;
@@ -54,7 +57,11 @@ class DaqServer : public QObject
         boost::shared_ptr<boost::asio::io_service::strand> m_strand;
         boost::asio::ip::udp::endpoint m_remote_endpoint;
 
+        boost::shared_ptr<boost::timed_mutex> m_mutex;
+        boost::shared_ptr<boost::condition_variable_any> m_fill_condition;
+
         boost::atomic<int> m_message_count;
+        boost::atomic<int> n_total_atomic;
 
         boost::shared_ptr<EventBuilder> m_event_builder;
 

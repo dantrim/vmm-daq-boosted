@@ -27,7 +27,8 @@ DataHandler::DataHandler(QObject* parent) :
     m_output_fullfilename(""),
     n_total_events_to_process(0),
     m_current_run_number(0),
-    m_server(NULL)
+    m_server(NULL),
+    times_updated(0)
 {
     cout << "DataHandler::DataHandler()" << endl;
 
@@ -37,7 +38,7 @@ bool DataHandler::initializeRun(std::string output_dir, int events_to_process)
 {
     cout << "DataHandler::initializeRun()" << endl;
     if(!setOutputFile(output_dir)) return false;
-    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events" << endl;
+    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events for run" << m_current_run_number  << endl;
     n_total_events_to_process = events_to_process;
 
     if(m_server) { 
@@ -65,6 +66,14 @@ void DataHandler::endRun()
     std::cout << "DataHandler::endRun()" << std::endl;
     m_server->stop_listening();
     m_server->stop_server();
+
+    while(true) {
+        if(m_server->is_stopped()) break;
+        std::cout << "waiting for server to stop" << std::endl;
+    }
+    if(/*writeNtuple*/ true) {
+        m_server->write_output();
+    }
 }
 
 bool DataHandler::setOutputFile(std::string out_dir)
@@ -87,7 +96,8 @@ bool DataHandler::setOutputFile(std::string out_dir)
     if(!dirname.endsWith("/")) spacer = "/";
 
     QString check_file = dirname + spacer;
-    int run_number = checkForExistingFiles(check_file.toStdString());
+    m_current_run_number = checkForExistingFiles(check_file.toStdString());
+    int run_number = m_current_run_number;
 
     QString filename_init = "run_%04d.root";
     const char* filename_formed = Form(filename_init.toStdString().c_str(), run_number);

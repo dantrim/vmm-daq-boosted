@@ -10,6 +10,7 @@
 //boost
 #include <boost/shared_ptr.hpp>
 #include <boost/array.hpp>
+#include <boost/thread.hpp>
 
 //ROOT
 class TFile;
@@ -27,6 +28,11 @@ class EventBuilder
 
         // initialize the output file and trees
         bool init(std::string filename, int run_number);
+
+        bool m_filling_data;
+        //void get_sync_items(boost::mutex& data_mutex, boost::condition_variable_any data_condition);
+        void get_sync_items(boost::shared_ptr<boost::timed_mutex> data_mutex, boost::shared_ptr<boost::condition_variable_any> data_condition);
+
         //void loadCounter(boost::shared_ptr<int> counter);
         void resetCounter() { n_daqCount = 0; }
         int getDAQCounts() { return (n_daqCount); }
@@ -43,8 +49,12 @@ class EventBuilder
         void print_data(std::string msg, int& daq_counter);
 
         void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter, std::string& ip_string);
+        void fill_event();
+        void write_output();
 
         void clearData();
+
+        int n_push_back;
 
     private :
         std::string m_output_rootfilename;
@@ -56,6 +66,14 @@ class EventBuilder
         // event counter
         //boost::shared_ptr< int > n_daqCount;
         int n_daqCount;
+
+        // mutex for event data access between threads
+        boost::shared_ptr<boost::timed_mutex> m_data_mutex;
+        //boost::mutex m_data_mutex;
+
+        // condition for accessing 
+        boost::shared_ptr<boost::condition_variable_any> m_event_fill_condition;
+        //boost::condition_variable_any m_event_fill_condition;
         
 
 

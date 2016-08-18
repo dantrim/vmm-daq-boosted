@@ -13,18 +13,20 @@ DaqServer::DaqServer(QObject* parent) :
     m_total_events_to_process(-1),
     //n_daqCount(new int()),
     n_daqCount(0),
-    m_thread_count(1),
+    m_thread_count(2),
     m_socket(NULL),
     m_io_service(NULL),
     m_idle_work(NULL),
     m_strand(NULL),
-    m_message_count(0)
+    m_message_count(0),
+    n_total_atomic(0)
 {
     std::cout << "DaqServer::DaqServer()" << std::endl;
 }
 
 bool DaqServer::init(std::string filename, int run_number, int num_events_to_process)
 {
+    std::cout << "DaqServer::init    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
  //   if(m_io_service) {
  //       m_io_service->reset();
  //   }
@@ -36,6 +38,9 @@ bool DaqServer::init(std::string filename, int run_number, int num_events_to_pro
         }
  //       m_socket->reset();
     }
+
+    n_total_atomic = num_events_to_process;
+
  //   if(m_idle_work) {
  //       m_idle_work->reset();
  //   }
@@ -52,6 +57,13 @@ bool DaqServer::init(std::string filename, int run_number, int num_events_to_pro
     m_event_builder = boost::shared_ptr<EventBuilder>(new EventBuilder());
     if(!m_event_builder->init(filename, run_number)) 
         return false;
+
+    // event filling conditions
+    m_mutex = boost::shared_ptr<boost::timed_mutex>(new boost::timed_mutex());
+    std::cout << "server data mutex: " << m_mutex << std::endl;
+    m_fill_condition = boost::shared_ptr<boost::condition_variable_any>(new boost::condition_variable_any());
+    m_event_builder->get_sync_items(m_mutex, m_fill_condition);
+
     m_run_number = run_number;
     m_total_events_to_process = num_events_to_process; 
 
@@ -89,11 +101,27 @@ void DaqServer::handle_data(int& daq_counter)
 
     // stop data taking when event count is reached, if event count is <0 will
     // ignore
-    if( (n_daqCount >= m_total_events_to_process) && m_total_events_to_process>=0) {
-        emit eventCountReached();
-    }
+//    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>=0) {
+//    //if( (n_daqCount >= m_total_events_to_process) && m_total_events_to_process>=0) {
+//     //   global_stream_lock.lock();
+//     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+//     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+//     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+//     //   global_stream_lock.unlock();
+//        emit eventCountReached();
+//    }
 
-    if( ( (n_daqCount % 100) == 0) ) emit updateCounts(n_daqCount);
+    if( ( (daq_counter % 100) == 0) ) {
+      //  global_stream_lock.lock();
+      //  std::cout << "ZZZZZZZZ " << daq_counter << std::endl;
+      //  std::cout << "ZZZZZZZZ " << daq_counter << std::endl;
+      //  std::cout << "ZZZZZZZZ " << daq_counter << std::endl;
+      //  std::cout << "ZZZZZZZZ " << daq_counter << std::endl;
+      //  global_stream_lock.unlock();
+        emit updateCounts(daq_counter);
+    }
+       
+    //if( ( (n_daqCount % 100) == 0) ) emit updateCounts(n_daqCount);
 
     m_socket->async_receive_from(
         boost::asio::buffer(m_data_buffer), m_remote_endpoint,
@@ -115,15 +143,27 @@ void DaqServer::decode_data(int& daq_counter, const boost::system::error_code er
     //          << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
     //std::string msg(m_data_buffer.data());
     std::string ip_ = m_remote_endpoint.address().to_string();
+    int next_event_count = daq_counter+=1;
     if(size_) {
-        m_event_builder->decode_event(m_data_buffer, size_, daq_counter, ip_);
+        m_event_builder->decode_event(m_data_buffer, size_, boost::ref(daq_counter), ip_);
+
     //m_event_builder->print_data(msg, daq_counter);
         m_message_count.fetch_add(1, boost::memory_order_relaxed);
     }
 
-
-    // keep listening (give the service more work)
-    handle_data(daq_counter);
+    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>=0) {
+    //if( (n_daqCount >= m_total_events_to_process) && m_total_events_to_process>=0) {
+     //   global_stream_lock.lock();
+     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+     //   std::cout << "888888888888888  " << daq_counter << std::endl;
+     //   global_stream_lock.unlock();
+        emit eventCountReached();
+    }
+    else {
+        // keep listening (give the service more work)
+        handle_data(daq_counter);
+    }
 }
 
 void DaqServer::stop_listening()
@@ -143,6 +183,20 @@ void DaqServer::stop_server()
     std::cout << "DaqServer::stop_server()" << std::endl;
     m_io_service->stop();
     m_thread_group.join_all();
+}
+
+bool DaqServer::is_stopped()
+{
+    return m_io_service->stopped();
+}
+
+void DaqServer::write_output()
+{
+    m_event_builder->write_output();
+    //m_daqRootFile->cd();
+    //m_vmm->Write("", TObject::kOverwrite);
+    //m_daqRootFile->Wrtie();
+    //m_daqRootFile->Close();
 }
 
 

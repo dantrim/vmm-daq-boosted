@@ -49,6 +49,7 @@ class EventBuilder
         void print_data(std::string msg, int& daq_counter);
 
         void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter, std::string& ip_string);
+        void decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter, std::string& ip_string);
 
         uint32_t decodeGray(uint32_t gray);
 
@@ -103,12 +104,12 @@ class EventBuilder
         std::vector<int> _pdo;
         std::vector<int> _tdo;
         std::vector<int> _bcid;
-        std::vector<int> _gray;
-        std::vector<int> _channelNo;
-        std::vector<int> _febChannelNo;
-        std::vector<int> _mappedChannelNo;
+        std::vector<int> _grayDecoded;
+        std::vector<int> _channelId;
+        std::vector<int> _febChannelId;
+        std::vector<int> _mappedChannelId;
         std::vector<int> _flag;
-        std::vector<int> _thresh;
+        std::vector<int> _threshold;
         std::vector<int> _neighbor;
 
         // data to store in output ntuple per event 

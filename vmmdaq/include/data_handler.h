@@ -18,7 +18,7 @@ class DataHandler : public QObject
         explicit DataHandler(QObject *parent = 0);
         virtual ~DataHandler(){};
 
-        bool initializeRun(std::string dir, int events_to_process);
+        bool initializeRun(std::string dir, int events_to_process, bool doMini2=false);
 
         int checkForExistingFiles(std::string dir);
         bool setOutputFile(std::string output_dir);

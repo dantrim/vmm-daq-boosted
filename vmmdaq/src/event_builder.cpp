@@ -282,7 +282,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             uint32_t data0 = datagram_vector.at(i);
             uint32_t data1 = datagram_vector.at(i+1);
 
-
             // ----------- pdo ----------- //
             uint32_t pdo = (data0 & 0x3ff);
             _pdo.push_back(pdo);
@@ -299,7 +298,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             uint32_t tdo = (data0 & 0x3fc00000) >> 22;
             _tdo.push_back(tdo);
             
-
             // ---------- flag ----------- //
             uint32_t flag = (data1 & 0x1);
             _flag.push_back(flag);
@@ -351,6 +349,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
     } // while (continues until hitting the trailer)
 
     if(frame_counter == 0xffffffff) {
+
         //n_push_back++;
 
         /*clear data*/
@@ -363,8 +362,12 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         if(/*writeNtuple*/ true) {
             boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
             if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
+                //usleep(500000);
 
 
+                ////////////////////////////////////////////////////
+                // clear the global tree variables
+                ////////////////////////////////////////////////////
                 m_chipId.clear();
                 m_triggerTimeStamp.clear();
                 m_triggerCounter.clear();
@@ -377,6 +380,10 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_bcid.clear();
                 m_grayDecoded.clear();
                 m_channelId.clear();
+
+                ////////////////////////////////////////////////////
+                // assign the tree variables
+                ////////////////////////////////////////////////////
 
                 m_eventNumberFAFA = counter;
 
@@ -393,15 +400,10 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_grayDecoded = _grayDecoded_tree;
                 m_channelId = _channelId_tree;
         
-                stream_lock.lock();
-                std::cout << "[" << boost::this_thread::get_id() << "] increment counter" << std::endl;
-                stream_lock.unlock();
 
-
-                //stream_lock.lock();
-                //std::cout << "[" << boost::this_thread::get_id() << "] decode event wait" << std::endl;
-                //stream_lock.unlock();
-
+                //////////////////////////////////////////////
+                // fill the tree branches
+                //////////////////////////////////////////////
                 fill_event();
 
                 boost::timed_mutex *m = lock.release();
@@ -417,8 +419,233 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
     } // at trailer
 
     stream_lock.unlock();
+}
+
+void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagram, size_t num_bytes,
+    int& counter, std::string& ip_string)
+{
+
+    std::vector<uint32_t> datagram_vector_tmp(datagram.begin(), datagram.begin()+num_bytes/sizeof(uint32_t));
+    std::vector<uint32_t> datagram_vector; 
+    #warning check that reversal is needed in real use case
+    for(const auto& data : datagram_vector_tmp) {
+        datagram_vector.push_back(bits::endian_swap32()(data));
+    }
+
+    boost::dynamic_bitset<> full_event_data(32*datagram_vector.size(), 0);
+    for(int i = 0; i < (int)datagram_vector.size(); i++) {
+        boost::dynamic_bitset<> tmp(32,datagram_vector.at(i));
+        tmp.resize(full_event_data.size());
+        if(i==0) full_event_data = full_event_data | tmp; 
+        else {
+            full_event_data = (full_event_data << 32) | tmp;
+        }
+    }
+    stream_lock.lock();
+    std::cout << "full mini2 event data: " << full_event_data << "  size: " << full_event_data.size() /32 << std::endl;
+    stream_lock.unlock();
+
+
+    uint32_t frame_counter = datagram_vector.at(0);
+
+
+    //////////////////////////////////////////////////////////
+    // VMM
+    //////////////////////////////////////////////////////////
+    if(!(frame_counter == 0xfafafafa)) {
+
+
+        _pdo.clear();
+        _tdo.clear();
+        _bcid.clear();
+        _grayDecoded.clear();
+        _channelId.clear();
+        _febChannelId.clear();
+        _mappedChannelId.clear();
+        _flag.clear();
+        _threshold.clear();
+        _neighbor.clear();
+
+        boost::dynamic_bitset<> HEADER(32, datagram_vector.at(1));
+        boost::dynamic_bitset<> HEADERINFO(32, datagram_vector.at(2));
+
+        boost::dynamic_bitset<> header_id_mask(32, 0xffffff);
+        boost::dynamic_bitset<> header_id(32, 0);
+
+        header_id = (HEADER & header_id_mask);
+
+        // ----------- EVENT DATA --------------- //
+        if(header_id.to_ulong() == 0x564d32) {
+
+            uint32_t vmm_id = ((HEADER.to_ulong() >> 24) & 0xff);
+            uint32_t trig_counter = (HEADERINFO.to_ulong() & 0xffff);
+            uint32_t trig_timestamp = ((HEADERINFO.to_ulong() >> 16) & 0xffff);
+
+            if(true /*dbg*/) {
+                std::stringstream sx;
+                sx << "********************************************************\n"
+                   << " Data from board #  : MAPPING NOT YET ADDED \n" 
+                   << "   > IP             : " << ip_string << "\n"
+                   << "   > VMM ID         : " << vmm_id << "\n" 
+                   << "   > Data           : " << full_event_data << "\n"
+                   << "********************************************************";
+                stream_lock.lock();
+                std::cout << sx.str() << std::endl;
+                stream_lock.unlock();
+            }
+
+            for(int i = 3; i < (int)datagram_vector.size(); i+=2) {
+                boost::dynamic_bitset<> data0(32, bits::reverse_32()(datagram_vector.at(i)));
+                boost::dynamic_bitset<> data1(32, bits::reverse_32()(datagram_vector.at(i+1)));
+                //boost::dynamic_bitset<> data0(32, datagram_vector.at(i));
+                //boost::dynamic_bitset<> data1(32, datagram_vector.at(i+1));
+
+                stream_lock.lock();
+                std::cout << "datagram size: " << datagram_vector.size() << std::endl;
+                std::cout << "bytes0            : " << std::bitset<32>(datagram_vector.at(i)) << std::endl;
+                std::cout << "bytes0 reversed   : " << data0 << std::endl;
+                std::cout << "bytes1            : " << std::bitset<32>(datagram_vector.at(i+1)) << std::endl;
+                std::cout << "bytes1 reversed   : " << data1 << std::endl;
+                stream_lock.unlock();
+
+
+                boost::dynamic_bitset<> db_fff(data0.size(), 0xfff);
+                boost::dynamic_bitset<> db_3ff(data0.size(), 0x3ff);
+                boost::dynamic_bitset<> db_ff(data0.size(), 0xff);
+
+                // --------------- flag ------------------ //
+                uint32_t flag = ( (data1 >> 24).to_ulong() & 0x1); 
+                _flag.push_back(flag);
+
+                // ------------ threshold --------------- //
+                uint32_t threshold = ( (data1 >> 24).to_ulong() & 0x2) >> 1;
+                _threshold.push_back(flag);
+
+                // ----------- vmm channel -------------- //
+                uint32_t vmm_channel = ( (data1 >> 24).to_ulong() & 0xfc) >> 2;
+                _channelId.push_back(vmm_channel);
+
+                // ---------------- pdo --------------- //
+                boost::dynamic_bitset<> pdo_bits(data0.size(), 0);
+                pdo_bits = data0 & db_3ff;
+                uint32_t pdo = pdo_bits.to_ulong();
+                _pdo.push_back(pdo);
+
+                // ---------------- tdo --------------- //
+                boost::dynamic_bitset<> tdo_bits(data0.size(), 0);
+                tdo_bits = (data0 >> 10) & db_ff;
+                uint32_t tdo = tdo_bits.to_ulong();
+                _tdo.push_back(tdo);
+
+                // ---------------- bcid -------------- //
+                boost::dynamic_bitset<> bcid_bits(data0.size(), 0);
+                bcid_bits = (data0 >> 18) & db_fff;
+                uint32_t bcid = bcid_bits.to_ulong();
+                _bcid.push_back(bcid);
+
+                // -------- gray decoded bcid --------- //
+                uint32_t decoded = decodeGray(bcid);
+                _grayDecoded.push_back(decoded);
+                
+
+                if(true /*verbose*/) {
+                    std::stringstream sx;
+                    sx << "[" << counter << ", " << i << "] flag: " << flag << " threshold: " << threshold << "   channel: " << vmm_channel << "\n"
+                       << "              pdo : " << pdo  << " tdo : " << tdo << "  bcid: " << bcid << "  gray decoded bcid: " << decoded;
+                    stream_lock.lock();
+                    std::cout << "data0 size: " << data0.size() << std::endl;
+                    std::cout << sx.str() << std::endl;
+                    stream_lock.unlock();
+                }
+
+            } // looping over vmm2 channels
+
+            //fill
+            if(/*writeNtuple*/ true) {
+                std::cout << "FILLING MINI2" << std::endl;
+                boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
+                if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
+
+                    m_chipId.push_back(vmm_id);
+                    m_triggerTimeStamp.push_back(trig_timestamp);
+                    m_triggerCounter.push_back(trig_counter);
+                    m_eventSize.push_back(num_bytes);
+
+                    m_tdo.push_back(_tdo);
+                    m_pdo.push_back(_pdo);
+                    m_flag.push_back(_flag);
+                    m_threshold.push_back(_threshold);
+                    m_bcid.push_back(_bcid);
+                    m_grayDecoded.push_back(_grayDecoded);
+                    m_channelId.push_back(_channelId);
+
+                    boost::timed_mutex *m = lock.release();
+                    m->unlock();
+
+                } // lock try
+                else {
+                    stream_lock.lock();
+                    std::cout << "EventBuilder [" << boost::this_thread::get_id() << "]    Lock timed out. Missed filling event " << (n_push_back) << std::endl;
+                    stream_lock.unlock();
+                }
+                    
+
+            }
+
+
+        } // vmm2 event data
+
+        // -------------- ART DATA -------------- //
+        else if(header_id.to_ulong() == 0x564132) {
+            #warning need to handle ART data
+
+        } // art data
+
+
+
+    } // != fafafafa
+
+    if(frame_counter == 0xfafafafa) {
+        stream_lock.lock();
+        std::cout << "[" << boost::this_thread::get_id() << "]   fafafafa reached" << std::endl;
+        stream_lock.unlock();
+
+        // update daq counter
+        n_push_back++;
+        counter = n_push_back;
+
+        if(/*writeNtuple*/ true) {
+
+            boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
+            if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
+
+                m_eventNumberFAFA = counter;
+
+                ///////////////////////////////////////////////////
+                // fill the tree branches
+                ///////////////////////////////////////////////////
+                fill_event();
+
+                clearData();
+
+                boost::timed_mutex *m = lock.release();
+                m->unlock();
+
+            } // lock try
+            else {
+                stream_lock.lock();
+                std::cout << "EventBuilder [" << boost::this_thread::get_id() << "]    Lock timed out. Missed filling event " << (n_push_back) << std::endl;
+                stream_lock.unlock();
+            }
+
+        } // writeNtuple
+
+    } //fafafafa
+
+    stream_lock.unlock();
 
 }
+
 
 uint32_t EventBuilder::decodeGray(uint32_t gray)
 {
@@ -453,13 +680,3 @@ void EventBuilder::write_output()
     stream_lock.unlock();
 }
 
-void EventBuilder::print_data(std::string msg, int& counter)
-{
-    using std::cout;
-    using std::endl;
-
-    cout << "EventBuilder::print_data    [" << boost::this_thread::get_id()
-            << "]    " << msg << endl;
-    counter++;
-    return;
-}

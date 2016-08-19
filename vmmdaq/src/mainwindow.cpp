@@ -65,7 +65,7 @@ void MainWindow::startRun()
         m_dataHandler = new DataHandler(this);
     }
     int count_to_stop_at = std::stoi(ui->eventCountStop_text->text().toStdString());
-    bool ok_to_start = m_dataHandler->initializeRun(ui->outputDirectory_text->text().toStdString(), count_to_stop_at);
+    bool ok_to_start = m_dataHandler->initializeRun(ui->outputDirectory_text->text().toStdString(), count_to_stop_at, ui->mini2_checkBox->isChecked());
     if(!ok_to_start) {
         std::cout << "VMMDAQ INFO    Unable to start run" << std::endl;
         return;

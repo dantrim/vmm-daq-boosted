@@ -34,11 +34,11 @@ DataHandler::DataHandler(QObject* parent) :
 
 }
 
-bool DataHandler::initializeRun(std::string output_dir, int events_to_process)
+bool DataHandler::initializeRun(std::string output_dir, int events_to_process, bool doMini2)
 {
     cout << "DataHandler::initializeRun()" << endl;
     if(!setOutputFile(output_dir)) return false;
-    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events for run" << m_current_run_number  << endl;
+    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events for run" << m_current_run_number  << "  (" << (doMini2 ? "MINI2" : "MMFE8") << ")" <<  endl;
     n_total_events_to_process = events_to_process;
 
     if(m_server) { 
@@ -50,7 +50,7 @@ bool DataHandler::initializeRun(std::string output_dir, int events_to_process)
     // stop data taking when the event count is reached
     connect(m_server, SIGNAL(eventCountReached()), this, SLOT(endRun()));
     connect(m_server, SIGNAL(updateCounts(int)), this, SLOT(updateCounts(int)));
-    if(!m_server->init(m_output_fullfilename, m_current_run_number, events_to_process)) return false;
+    if(!m_server->init(m_output_fullfilename, m_current_run_number, events_to_process, doMini2)) return false;
     m_server->listen();
 
     return true;

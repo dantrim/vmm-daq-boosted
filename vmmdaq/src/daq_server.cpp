@@ -8,12 +8,13 @@ boost::mutex global_stream_lock;
 
 DaqServer::DaqServer(QObject* parent) :
     QObject(parent),
+    m_mini2(false),
     m_daq_port(1236),
     m_run_number(0),
     m_total_events_to_process(-1),
     //n_daqCount(new int()),
     n_daqCount(0),
-    m_thread_count(2),
+    m_thread_count(1),
     m_socket(NULL),
     m_io_service(NULL),
     m_idle_work(NULL),
@@ -24,12 +25,16 @@ DaqServer::DaqServer(QObject* parent) :
     std::cout << "DaqServer::DaqServer()" << std::endl;
 }
 
-bool DaqServer::init(std::string filename, int run_number, int num_events_to_process)
+bool DaqServer::init(std::string filename, int run_number, int num_events_to_process, bool do_mini2)
 {
     std::cout << "DaqServer::init    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
  //   if(m_io_service) {
  //       m_io_service->reset();
  //   }
+
+    if(do_mini2) m_mini2 = true;
+    else { m_mini2 = false; }
+
     if(m_socket) {
         if(m_socket->is_open()) {
             m_socket->close();
@@ -93,6 +98,7 @@ void DaqServer::listen()
     }
 
     m_strand->post(boost::bind(&DaqServer::handle_data, this, boost::ref(n_daqCount))); 
+    //m_io_service->post(boost::bind(&DaqServer::handle_data, this, boost::ref(n_daqCount)));
 
 }
 
@@ -130,7 +136,6 @@ void DaqServer::handle_data(int& daq_counter)
         boost::asio::placeholders::error,
         boost::asio::placeholders::bytes_transferred)
     );
-
 }
 
 void DaqServer::decode_data(int& daq_counter, const boost::system::error_code error, std::size_t size_)
@@ -145,7 +150,12 @@ void DaqServer::decode_data(int& daq_counter, const boost::system::error_code er
     std::string ip_ = m_remote_endpoint.address().to_string();
     int next_event_count = daq_counter+=1;
     if(size_) {
-        m_event_builder->decode_event(m_data_buffer, size_, boost::ref(daq_counter), ip_);
+        if(!m_mini2) {
+            m_event_builder->decode_event(m_data_buffer, size_, boost::ref(daq_counter), ip_);
+        }
+        else {
+            m_event_builder->decode_event_mini2(m_data_buffer, size_, boost::ref(daq_counter), ip_);
+        }
 
     //m_event_builder->print_data(msg, daq_counter);
         m_message_count.fetch_add(1, boost::memory_order_relaxed);

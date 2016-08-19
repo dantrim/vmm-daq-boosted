@@ -49,6 +49,9 @@ class EventBuilder
         void print_data(std::string msg, int& daq_counter);
 
         void decode_event(boost::array<uint32_t, MAXBUFLEN>& data, size_t num_bytes, int& counter, std::string& ip_string);
+
+        uint32_t decodeGray(uint32_t gray);
+
         void fill_event();
         void write_output();
 
@@ -120,8 +123,8 @@ class EventBuilder
         std::vector<int> m_art;
         std::vector<int> m_artFlag;
 
-        std::vector< std::vector<int> > m_tdo;
         std::vector< std::vector<int> > m_pdo;
+        std::vector< std::vector<int> > m_tdo;
         std::vector< std::vector<int> > m_flag;
         std::vector< std::vector<int> > m_threshold;
         std::vector< std::vector<int> > m_bcid;

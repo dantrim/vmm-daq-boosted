@@ -25,7 +25,10 @@ class DaqServer : public QObject
         explicit DaqServer(QObject *parent=0);
         virtual ~DaqServer(){};
 
-        bool init(std::string filename, int run_number, int num_events_to_process, bool do_mini2=false);
+        bool init(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2=false);
+        void setDoMonitoring(bool do_mon);
+        void setIgnore16(bool ignore);
+        void setCalibrationRun(bool calib_run);
 
         void listen();
         //void WorkerThread(boost::shared_ptr<boost::asio::io_service> io);
@@ -50,7 +53,6 @@ class DaqServer : public QObject
         int n_daqCount;
         int m_thread_count;
         boost::thread_group m_thread_group;
-
         boost::array<uint32_t, MAXBUFLEN> m_data_buffer;
 
         boost::shared_ptr<boost::asio::ip::udp::socket> m_socket;

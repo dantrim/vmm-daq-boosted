@@ -26,14 +26,25 @@ DaqServer::DaqServer(QObject* parent) :
     std::cout << "DaqServer::DaqServer()" << std::endl;
 }
 
-bool DaqServer::init(std::string filename, int run_number, int num_events_to_process, bool do_mini2)
+void DaqServer::setDoMonitoring(bool do_mon)
+{
+    #warning set up monitoring flags!
+}
+void DaqServer::setIgnore16(bool ignore_16)
+{
+    #warning set up ignore 16 flag
+}
+void DaqServer::setCalibrationRun(bool is_calib_run)
+{
+    #warning set up calibration run flag
+}
+
+
+bool DaqServer::init(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2)
 {
     *m_continue_gathering = true;
 
     std::cout << "DaqServer::init    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
- //   if(m_io_service) {
- //       m_io_service->reset();
- //   }
 
     if(do_mini2) m_mini2 = true;
     else { m_mini2 = false; }
@@ -44,17 +55,9 @@ bool DaqServer::init(std::string filename, int run_number, int num_events_to_pro
             boost::system::error_code ec;
             m_socket->shutdown(ip::udp::socket::shutdown_both, ec);
         }
- //       m_socket->reset();
     }
 
     n_total_atomic = num_events_to_process;
-
- //   if(m_idle_work) {
- //       m_idle_work->reset();
- //   }
- //   if(m_strand) {
- //       m_strand->reset();
- //   }
 
     m_io_service = boost::shared_ptr<boost::asio::io_service>(new boost::asio::io_service());
     m_idle_work = boost::shared_ptr<boost::asio::io_service::work>(new boost::asio::io_service::work(*m_io_service));
@@ -63,7 +66,7 @@ bool DaqServer::init(std::string filename, int run_number, int num_events_to_pro
     m_socket = boost::shared_ptr<boost::asio::ip::udp::socket>(new ip::udp::socket(*m_io_service, ip::udp::endpoint(ip::udp::v4(), m_daq_port)));
 
     m_event_builder = boost::shared_ptr<EventBuilder>(new EventBuilder());
-    if(!m_event_builder->init(filename, run_number)) 
+    if(!m_event_builder->init(writeNtuple, filename, run_number)) 
         return false;
 
     // event filling conditions

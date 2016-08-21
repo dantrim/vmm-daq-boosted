@@ -27,7 +27,7 @@ EventBuilder::EventBuilder() :
     m_filling_data(false),
     m_output_rootfilename(""),
     m_run_number(0),
-    m_writeNtuple(true),
+    m_writeNtuple(false),
     m_calibRun(false),
     n_daqCount(0),
     //n_daqCount(new int()),
@@ -38,21 +38,30 @@ EventBuilder::EventBuilder() :
 {
 }
 
-bool EventBuilder::init(std::string filename, int run_number)
+bool EventBuilder::init(bool writeNtuple_, std::string filename, int run_number)
 {
-    std::cout << "EventBuilder::init run: " << run_number << "  file: " << filename << std::endl;
+    m_writeNtuple = writeNtuple_;
+    if(writeNtuple())
+        std::cout << "EventBuilder::init run: " << run_number << "  file: " << filename << std::endl;
+    else {
+        std::cout << "EventBuilder::init run: " << run_number << "  (not storing to file) " << filename << std::endl;
+
+    }
     std::stringstream sx;
     m_run_number = run_number;
-    m_daqRootFile = new TFile(filename.c_str(), "UPDATE");
-    if(m_daqRootFile->IsZombie()) {
-        std::cout << "EventBuilder::init    ERROR DAQ ROOT file unable to be opened!" << std::endl;
-        delete m_daqRootFile;
-        return false;
-    }
-    m_output_rootfilename = filename;
 
-    // setup trees and tree structure
-    setupOutputTrees();
+    if(writeNtuple()) {
+        m_daqRootFile = new TFile(filename.c_str(), "UPDATE");
+        if(m_daqRootFile->IsZombie()) {
+            std::cout << "EventBuilder::init    ERROR DAQ ROOT file unable to be opened!" << std::endl;
+            delete m_daqRootFile;
+            return false;
+        }
+        m_output_rootfilename = filename;
+
+        // setup trees and tree structure
+        setupOutputTrees();
+    }
 
     return true;
 }
@@ -217,21 +226,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         datagram_vector.push_back(bits::endian_swap32()(data));
     }
 
- //   stream_lock.lock();
- //   std::cout << "tmp size: " << datagram_vector_tmp.size() << "   rev size: " << datagram_vector.size() << std::endl;
- //   stream_lock.unlock();
-
     uint32_t frame_counter = datagram_vector.at(0);
-    //boost::dynamic_bitset<> frame_counter(32, datagram_vector.at(0));
-    //stream_lock.lock();
-    //std::cout << "frame (orig): " << std::bitset<32>(frame_counter) << "  (hex: " << std::hex << frame_counter << std::dec << ")" << std::endl;
-    //std::cout << "frame (dyna): " << frame_counter_ << "  (hex: " << std::hex << frame_counter_.to_ulong() << std::dec << ")" << std::endl;
-    //stream_lock.unlock();
-
-    //boost::dynamic_bitset<> trailer(32, 0xffffffff);
-    //stream_lock.lock();
-    //std::cout << "TRAILER: " << trailer << "  (hex: " << std::hex << trailer.to_ulong() << std::dec << ")" <<  std::endl;
-    //stream_lock.unlock();
 
     while(true) {
         if(frame_counter == 0xffffffff) break;
@@ -322,7 +317,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 stream_lock.lock();
                 std::cout << sx.str() << std::endl;
                 stream_lock.unlock();
-
             }
 
             // move 2*32 bits forward 
@@ -330,7 +324,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         }
 
         //fill
-        if(/*writeNtuple*/ true) {
+        if(writeNtuple()) {
             _chipId_tree.push_back(vmm_id);
             _eventSize_tree.push_back(num_bytes);
             _trigTimeStamp_tree.push_back(trig_timestamp);
@@ -351,11 +345,10 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
     if(frame_counter == 0xffffffff) {
 
 
-        if(/*writeNtuple*/ true) {
+        if(writeNtuple()) {
             boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
             if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
                 //usleep(500000);
-
 
                 ////////////////////////////////////////////////////
                 // clear the global tree variables
@@ -410,7 +403,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
 
 
         //update daq counter
-        //counter++;
         n_push_back++;
         counter = n_push_back;
 
@@ -443,9 +435,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
     std::cout << "full mini2 event data: " << full_event_data << "  size: " << full_event_data.size() /32 << std::endl;
     stream_lock.unlock();
 
-
     uint32_t frame_counter = datagram_vector.at(0);
-
 
     //////////////////////////////////////////////////////////
     // VMM
@@ -561,7 +551,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
             } // looping over vmm2 channels
 
             //fill
-            if(/*writeNtuple*/ true) {
+            if(writeNtuple()) {
                 boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
                 if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
 
@@ -587,10 +577,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                     std::cout << "EventBuilder [" << boost::this_thread::get_id() << "]    Lock timed out. Missed filling event " << (n_push_back) << std::endl;
                     stream_lock.unlock();
                 }
-                    
-
             }
-
 
         } // vmm2 event data
 
@@ -617,7 +604,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                 uint32_t art1_flag = ((artdata.to_ulong() & 0x8000) >> 15);
                 uint32_t art2_flag = ((artdata.to_ulong() & 0x80) >> 7);
 
-                if(/*writeNtuple*/ true) {
+                if(writeNtuple()) {
                     boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
                     if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
 
@@ -644,8 +631,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
         std::cout << "[" << boost::this_thread::get_id() << "]   fafafafa reached" << std::endl;
         stream_lock.unlock();
 
-
-        if(/*writeNtuple*/ true) {
+        if(writeNtuple()) {
 
             boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
             if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
@@ -681,7 +667,6 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
 
 }
 
-
 uint32_t EventBuilder::decodeGray(uint32_t gray)
 {
     uint32_t mask;
@@ -693,26 +678,30 @@ uint32_t EventBuilder::decodeGray(uint32_t gray)
 
 void EventBuilder::fill_event()
 {
-    std::cout << "[" << boost::this_thread::get_id() << "] fill_event" << std::endl;
-    
-    m_daqRootFile->cd();
-    m_vmm_tree->Fill();
-    m_art_tree->Fill();
+    if(writeNtuple()) {
+        std::cout << "[" << boost::this_thread::get_id() << "] fill_event" << std::endl;
+        
+        m_daqRootFile->cd();
+        m_vmm_tree->Fill();
+        m_art_tree->Fill();
+    }
     
 }
 
 void EventBuilder::write_output()
 {
-    std::cout << "EventBuilder::write_output    [" << boost::this_thread::get_id() << "]" << std::endl;
-    m_daqRootFile->cd();
-    m_vmm_tree->Write("", TObject::kOverwrite);
-    if(!m_daqRootFile->Write()) {
-        std::cout << "EventBuilder::write_output    ERROR writing daq root file" << std::endl;
-    }
-    m_daqRootFile->Close();
+    if(writeNtuple()) {
+        std::cout << "EventBuilder::write_output    [" << boost::this_thread::get_id() << "]" << std::endl;
+        m_daqRootFile->cd();
+        m_vmm_tree->Write("", TObject::kOverwrite);
+        if(!m_daqRootFile->Write()) {
+            std::cout << "EventBuilder::write_output    ERROR writing daq root file" << std::endl;
+        }
+        m_daqRootFile->Close();
 
-    stream_lock.lock();
-    std::cout << "\nEventBuilder::write_output    Run " << m_run_number << " stored in file: " << m_output_rootfilename << "\n" << std::endl;
-    stream_lock.unlock();
+        stream_lock.lock();
+        std::cout << "\nEventBuilder::write_output    Run " << m_run_number << " stored in file: " << m_output_rootfilename << "\n" << std::endl;
+        stream_lock.unlock();
+    }
 }
 

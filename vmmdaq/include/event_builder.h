@@ -27,7 +27,7 @@ class EventBuilder
         virtual ~EventBuilder(){};
 
         // initialize the output file and trees
-        bool init(std::string filename, int run_number);
+        bool init(bool writeNtuple, std::string filename, int run_number);
 
         bool m_filling_data;
         //void get_sync_items(boost::mutex& data_mutex, boost::condition_variable_any data_condition);

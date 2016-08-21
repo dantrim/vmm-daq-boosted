@@ -27,20 +27,50 @@ DataHandler::DataHandler(QObject* parent) :
     m_output_fullfilename(""),
     n_total_events_to_process(0),
     m_current_run_number(0),
+    m_writeNtuple(false),
+    m_do_monitoring(false),
+    m_ignore16(false),
+    m_is_calibration_run(false),
     m_server(NULL),
     times_updated(0)
 {
     cout << "DataHandler::DataHandler()" << endl;
-
 }
 
-bool DataHandler::initializeRun(std::string output_dir, int events_to_process, bool doMini2)
+void DataHandler::setDoMonitoring(bool doit)
 {
-    cout << "DataHandler::initializeRun()" << endl;
-    if(!setOutputFile(output_dir)) return false;
-    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events for run" << m_current_run_number  << "  (" << (doMini2 ? "MINI2" : "MMFE8") << ")" <<  endl;
-    n_total_events_to_process = events_to_process;
+    if(!m_server) {
+        cout << "DataHandler::setDoMonitoring    ERROR DaqServer not initialized. You must call this function after server is set up!" << endl;
+        m_writeNtuple = false;
+        return;
+    }
+    m_server->setDoMonitoring(doit);
+    m_writeNtuple = doit;
+}
+void DataHandler::setIgnore16(bool doit)
+{
+    if(!m_server) {
+        cout << "DataHandler::setIgnore16    ERROR DaqServer not initialized. You must call this function after server is set up!" << endl;
+        m_ignore16 = false;
+        return;
+    }
+    m_server->setIgnore16(doit);
+    m_ignore16 = doit;
+}
+void DataHandler::setCalibrationRun(bool doit)
+{
+    if(!m_server) {
+        cout << "DataHandler::setCalibrationRun    ERROR DaqServer not initialized. You must call this function after server is set up!" << endl;
+        m_is_calibration_run = false;
+        return;
+    }
+    m_server->setCalibrationRun(doit);
+    m_is_calibration_run = doit;
+}
 
+void DataHandler::initialize()
+{
+    cout << "DataHandler::initialize" << endl;
     if(m_server) { 
         m_server->stop_listening();
         m_server->stop_server();
@@ -50,10 +80,27 @@ bool DataHandler::initializeRun(std::string output_dir, int events_to_process, b
     // stop data taking when the event count is reached
     connect(m_server, SIGNAL(eventCountReached()), this, SLOT(endRun()));
     connect(m_server, SIGNAL(updateCounts(int)), this, SLOT(updateCounts(int)));
-    if(!m_server->init(m_output_fullfilename, m_current_run_number, events_to_process, doMini2)) return false;
-    m_server->listen();
+}
+
+bool DataHandler::initializeRun(bool writeNtuple_, std::string output_dir, int events_to_process, bool doMini2)
+{
+    if(writeNtuple_)
+        if(!setOutputFile(output_dir)) return false;
+    cout << "DataHandler::initializeRun    Will process " << events_to_process << " events for run" << m_current_run_number  << "  (" << (doMini2 ? "MINI2" : "MMFE8") << ")" <<  endl;
+    n_total_events_to_process = events_to_process;
+
+    if(writeNtuple_) {
+        cout << "DataHandler::initializeRun    Will write output ntuple" << endl;
+    }
+    m_writeNtuple = writeNtuple_;
+
+    if(!m_server->init(m_writeNtuple, m_output_fullfilename, m_current_run_number, events_to_process, doMini2)) return false;
 
     return true;
+}
+void DataHandler::startGathering()
+{
+    m_server->listen();
 }
 
 void DataHandler::updateCounts(int counts)
@@ -86,7 +133,7 @@ bool DataHandler::setOutputFile(std::string out_dir)
 
     bool exists = std::ifstream(out_dir).good();
     if(!exists) {
-        cout << "DataHandler::setupOutputFile    output directory is invalid" << endl;
+        cout << "DataHandler::setOutputFile    output directory is invalid" << endl;
         emit badOutputDir();
         return false;
     }
@@ -104,11 +151,11 @@ bool DataHandler::setOutputFile(std::string out_dir)
     std::string filename_formed_str(filename_formed);
     QString full_name = dirname + spacer + QString::fromStdString(filename_formed_str);
 
-    std::cout << "DataHandler::setupOutputFile    setting output file to " << full_name.toStdString() << endl;
+    std::cout << "DataHandler::setOutputFile    setting output file to " << full_name.toStdString() << endl;
     m_output_dir = out_dir; 
 
     if(!checkRootFile(full_name.toStdString())) {
-        cout << "DataHandler::setupOutputFile    root file " << full_name.toStdString() << " unable to be created" << endl;
+        cout << "DataHandler::setOutputFile    root file " << full_name.toStdString() << " unable to be created" << endl;
         emit badOutputDir();
         return false;
     }

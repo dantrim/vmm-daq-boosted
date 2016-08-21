@@ -143,11 +143,8 @@ void DaqServer::handle_data(int& daq_counter)
 
 void DaqServer::decode_data(int& daq_counter, const boost::system::error_code error, std::size_t size_)
 {
-    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>0) {
-        emit eventCountReached();
-        *m_continue_gathering = false;
-    }
     if(!(*m_continue_gathering)) return;
+
     std::string ip_ = m_remote_endpoint.address().to_string();
     if(size_ && (*m_continue_gathering)) {
         if(!m_mini2) {
@@ -163,6 +160,10 @@ void DaqServer::decode_data(int& daq_counter, const boost::system::error_code er
 
   //  else {
         // keep listening (give the service more work)
+    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>0) {
+        emit eventCountReached();
+        *m_continue_gathering = false;
+    }
     if((*m_continue_gathering))
         handle_data(daq_counter);
   //  }

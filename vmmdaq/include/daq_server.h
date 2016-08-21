@@ -42,6 +42,7 @@ class DaqServer : public QObject
         void write_output();
 
     private :
+        boost::shared_ptr<bool> m_continue_gathering;
         bool m_mini2;
         int m_daq_port;
         int m_run_number;

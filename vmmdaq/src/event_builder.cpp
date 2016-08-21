@@ -350,14 +350,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
 
     if(frame_counter == 0xffffffff) {
 
-        //n_push_back++;
-
-        /*clear data*/
-        
-        //update daq counter
-        //counter++;
-        n_push_back++;
-        counter = n_push_back;
 
         if(/*writeNtuple*/ true) {
             boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
@@ -385,7 +377,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 // assign the tree variables
                 ////////////////////////////////////////////////////
 
-                m_eventNumberFAFA = counter;
+                m_eventNumberFAFA = n_push_back;
 
                 m_chipId = _chipId_tree;
                 m_triggerTimeStamp = _trigTimeStamp_tree;
@@ -415,6 +407,12 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 stream_lock.unlock();
             }
         } // writeNtuple
+
+
+        //update daq counter
+        //counter++;
+        n_push_back++;
+        counter = n_push_back;
 
     } // at trailer
 
@@ -454,6 +452,8 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
     //////////////////////////////////////////////////////////
     if(!(frame_counter == 0xfafafafa)) {
 
+        // clear the mini2 data as the fafafafa does not come
+        // at the end of this word but in a separate word
 
         _pdo.clear();
         _tdo.clear();
@@ -562,7 +562,6 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
 
             //fill
             if(/*writeNtuple*/ true) {
-                std::cout << "FILLING MINI2" << std::endl;
                 boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
                 if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
 
@@ -597,12 +596,47 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
 
         // -------------- ART DATA -------------- //
         else if(header_id.to_ulong() == 0x564132) {
-            #warning need to handle ART data
 
+            m_art.clear();
+            m_artFlag.clear();
+
+            uint32_t art_channel = ((HEADER.to_ulong() >> 24) & 0xff);
+
+            for(int i = 3; i < (int)datagram_vector.size(); i++) {
+                boost::dynamic_bitset<> art_datagram(32, datagram_vector.at(i));
+                boost::dynamic_bitset<> two_byte_mask(32, 0xffff);
+
+                boost::dynamic_bitset<> timestamp(32,0);
+                boost::dynamic_bitset<> artdata(32,0);
+                timestamp = (art_datagram & two_byte_mask);
+                artdata = ( art_datagram >> 16 ) & two_byte_mask;
+
+                uint32_t art1 = (( artdata.to_ulong() & 0x3f00 ) >> 8);
+                uint32_t art2 = ( artdata.to_ulong() & 0x3f );
+
+                uint32_t art1_flag = ((artdata.to_ulong() & 0x8000) >> 15);
+                uint32_t art2_flag = ((artdata.to_ulong() & 0x80) >> 7);
+
+                if(/*writeNtuple*/ true) {
+                    boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
+                    if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
+
+                        m_art.push_back(art1);
+                        m_art.push_back(art2);
+                        m_artFlag.push_back(art1_flag);
+                        m_artFlag.push_back(art2_flag);
+
+                        boost::timed_mutex *m = lock.release();
+                        m->unlock();
+                    } // lock try
+                    else {
+                        stream_lock.lock();
+                        std::cout << "EventBuilder [" << boost::this_thread::get_id() << "]    Lock timed out. Missed filling event art data " << (n_push_back) << std::endl;
+                        stream_lock.unlock();
+                    }
+                } // writeNtuple
+            } // i
         } // art data
-
-
-
     } // != fafafafa
 
     if(frame_counter == 0xfafafafa) {
@@ -610,16 +644,13 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
         std::cout << "[" << boost::this_thread::get_id() << "]   fafafafa reached" << std::endl;
         stream_lock.unlock();
 
-        // update daq counter
-        n_push_back++;
-        counter = n_push_back;
 
         if(/*writeNtuple*/ true) {
 
             boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
             if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
 
-                m_eventNumberFAFA = counter;
+                m_eventNumberFAFA = n_push_back;
 
                 ///////////////////////////////////////////////////
                 // fill the tree branches
@@ -639,6 +670,10 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
             }
 
         } // writeNtuple
+
+        // update daq counter
+        n_push_back++;
+        counter = n_push_back;
 
     } //fafafafa
 
@@ -662,6 +697,7 @@ void EventBuilder::fill_event()
     
     m_daqRootFile->cd();
     m_vmm_tree->Fill();
+    m_art_tree->Fill();
     
 }
 

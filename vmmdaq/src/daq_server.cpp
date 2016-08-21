@@ -8,6 +8,7 @@ boost::mutex global_stream_lock;
 
 DaqServer::DaqServer(QObject* parent) :
     QObject(parent),
+    m_continue_gathering(new bool()),
     m_mini2(false),
     m_daq_port(1236),
     m_run_number(0),
@@ -27,6 +28,8 @@ DaqServer::DaqServer(QObject* parent) :
 
 bool DaqServer::init(std::string filename, int run_number, int num_events_to_process, bool do_mini2)
 {
+    *m_continue_gathering = true;
+
     std::cout << "DaqServer::init    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
  //   if(m_io_service) {
  //       m_io_service->reset();
@@ -140,16 +143,13 @@ void DaqServer::handle_data(int& daq_counter)
 
 void DaqServer::decode_data(int& daq_counter, const boost::system::error_code error, std::size_t size_)
 {
-    //std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
-    //          << " incoming data packet from (IP, port) : ("
-    //          << m_remote_endpoint.address().to_string() << ", "
-    //          << m_remote_endpoint.port() << ") of size: " << size_ << " bytes" << std::endl;
-    //std::cout << "DaqServer [" << boost::this_thread::get_id() << "]    "
-    //          << " >> " << m_data_buffer.data() << "  msg count: " << m_message_count << "  daq counter(DaqServer): " << daq_counter << "  n_daqCount: " << n_daqCount << std::endl;
-    //std::string msg(m_data_buffer.data());
+    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>0) {
+        emit eventCountReached();
+        *m_continue_gathering = false;
+    }
+    if(!(*m_continue_gathering)) return;
     std::string ip_ = m_remote_endpoint.address().to_string();
-    int next_event_count = daq_counter+=1;
-    if(size_) {
+    if(size_ && (*m_continue_gathering)) {
         if(!m_mini2) {
             m_event_builder->decode_event(m_data_buffer, size_, boost::ref(daq_counter), ip_);
         }
@@ -161,19 +161,11 @@ void DaqServer::decode_data(int& daq_counter, const boost::system::error_code er
         m_message_count.fetch_add(1, boost::memory_order_relaxed);
     }
 
-    if( (daq_counter >= m_total_events_to_process) && m_total_events_to_process>=0) {
-    //if( (n_daqCount >= m_total_events_to_process) && m_total_events_to_process>=0) {
-     //   global_stream_lock.lock();
-     //   std::cout << "888888888888888  " << daq_counter << std::endl;
-     //   std::cout << "888888888888888  " << daq_counter << std::endl;
-     //   std::cout << "888888888888888  " << daq_counter << std::endl;
-     //   global_stream_lock.unlock();
-        emit eventCountReached();
-    }
-    else {
+  //  else {
         // keep listening (give the service more work)
+    if((*m_continue_gathering))
         handle_data(daq_counter);
-    }
+  //  }
 }
 
 void DaqServer::stop_listening()

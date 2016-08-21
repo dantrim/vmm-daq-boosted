@@ -29,7 +29,12 @@ class EventBuilder
         // initialize the output file and trees
         bool init(bool writeNtuple, std::string filename, int run_number);
 
-        bool m_filling_data;
+        void setIgnore16(bool ignore) { m_ignore16 = ignore; };
+        void setCalibrationRun(bool is_calib) { m_calibRun = is_calib; }
+        void setCalibrationChannel(int channel) { m_calib_channel = channel; }
+        void updateCalibrationState(double gainIdx, int dacThreshold, int dacAmplitude,
+                                        double tpSkewIdx, int peakTimeIdx);
+
         //void get_sync_items(boost::mutex& data_mutex, boost::condition_variable_any data_condition);
         void get_sync_items(boost::shared_ptr<boost::timed_mutex> data_mutex, boost::shared_ptr<boost::condition_variable_any> data_condition);
 
@@ -45,6 +50,7 @@ class EventBuilder
 
         bool writeNtuple() { return m_writeNtuple; }
         bool calibrationRun() { return m_calibRun; }
+        bool ignore16() { return m_ignore16; } 
 
         void print_data(std::string msg, int& daq_counter);
 
@@ -66,6 +72,8 @@ class EventBuilder
 
         bool m_writeNtuple; // flag for whether we are writing an output ntuple (ROOT) file
         bool m_calibRun; // this is a calibration run
+        int m_calib_channel;
+        bool m_ignore16;
 
         // event counter
         //boost::shared_ptr< int > n_daqCount;
@@ -92,7 +100,6 @@ class EventBuilder
 
         // global run properties
         double m_gain;
-        int m_runNumber;
         int m_tacSlope;
         int m_peakTime;
         int m_dacCounts;
@@ -134,7 +141,6 @@ class EventBuilder
         std::vector< std::vector<int> > m_febChannelId;
         std::vector< std::vector<int> > m_mappedChannelId; // detector element strip number
 
-        int m_channel_for_calib;
         int m_pulserCounts_calib;
         double m_gain_calib;
         int m_peakTime_calib;

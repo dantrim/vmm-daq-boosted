@@ -9,6 +9,8 @@
 //std/stdl
 #include <iostream>
 
+class MapHandler;
+class OnlineMonTool;
 
 class DataHandler : public QObject
 {
@@ -18,8 +20,16 @@ class DataHandler : public QObject
         explicit DataHandler(QObject *parent = 0);
         virtual ~DataHandler(){};
 
+        bool dbg() { return m_dbg; }
+        bool writeNtuple() { return m_writeNtuple; }
+
         void initialize();
         bool initializeRun(bool writeNtuple, std::string dir, int events_to_process, bool doMini2=false);
+        void setMMFE8(bool do_mmfe8);
+
+
+        void fillRunProperties(double gain, int tac_slope, int peak_time, int dac_threshold,
+                int dac_amplitude, int angle, double tp_skew);
         void startGathering();
 
         int checkForExistingFiles(std::string dir);
@@ -27,9 +37,13 @@ class DataHandler : public QObject
         bool checkRootFile(std::string filename);
 
         void setDoMonitoring(bool doit);
+        void setIgnore16(bool ignore_it);
         void setCalibrationRun(bool is_calibration);
+        void updateCalibrationState(double gain, int dac_threshold, int dac_amplitude,
+                double tp_skew, int peakTime);
 
     private :
+        bool m_dbg;
         std::string m_output_dir;
         std::string m_output_filename;
         std::string m_output_fullfilename;
@@ -45,6 +59,12 @@ class DataHandler : public QObject
         // server to listen for and handle incoming UDP packets
         DaqServer* m_server;
 
+        // tool for handling online monitoring
+        OnlineMonTool* m_monTool;
+
+        // tool for handling the data mapping
+        MapHandler* m_mapHandler;
+
         int times_updated;
 
     signals :
@@ -54,8 +74,7 @@ class DataHandler : public QObject
 
     public slots :
         void updateCounts(int);
-        void setIgnore16(bool);
-
+        void setCalibrationChannel(int);
         void endRun();
 
 };

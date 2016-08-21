@@ -26,10 +26,19 @@ class DaqServer : public QObject
         virtual ~DaqServer(){};
 
         bool init(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2=false);
+
+        void setMMFE8(bool do_mmfe8) { m_mini2 = !do_mmfe8; }
+
         void setDoMonitoring(bool do_mon);
         void setIgnore16(bool ignore);
         void setCalibrationRun(bool calib_run);
 
+        void setCalibrationChannel(int channel);
+        void updateCalibrationState(double gain, int dac_thresh, int dac_ampl,
+                    double tp_skew, int peakTime);
+
+        void fillRunProperties(double gain, int tac_slope, int peak_time, int dac_threshold,
+                int dac_amplitude, int angle, double tp_skew);
         void listen();
         //void WorkerThread(boost::shared_ptr<boost::asio::io_service> io);
 

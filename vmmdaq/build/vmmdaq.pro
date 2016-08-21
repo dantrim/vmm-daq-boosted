@@ -85,6 +85,10 @@ linux {
 
 INCLUDEPATH += $$includepath
 DEPENDPATH  += $$includepath
+INCLUDEPATH += $$includepath/monitoring/
+DEPENDPATH  += $$includepath/monitoring/
+INCLUDEPATH += $$includepath/mapping/
+DEPENDPATH  += $$includepath/mapping/
 INCLUDEPATH += $$boostinclude
 DEPENDPATH  += $$boostinclude
 #INCLUDEPATH += $$rootinclude
@@ -99,12 +103,47 @@ SOURCES += $$sourcepath/main.cpp\
            $$sourcepath/mainwindow.cpp\
            $$sourcepath/data_handler.cpp\
            $$sourcepath/daq_server.cpp\
-           $$sourcepath/event_builder.cpp
+           $$sourcepath/event_builder.cpp\
+           # monitoring
+           $$sourcepath/monitoring/OnlineMonTool.cpp\
+           # mapping
+           $$sourcepath/mapping/readout.cpp\
+           $$sourcepath/mapping/multilayer.cpp\
+           $$sourcepath/mapping/layer.cpp\
+           $$sourcepath/mapping/febconfig.cpp\
+           $$sourcepath/mapping/feb.cpp\
+           $$sourcepath/mapping/element.cpp\
+           $$sourcepath/mapping/detectorconfig.cpp\
+           $$sourcepath/mapping/daqconfig.cpp\
+           $$sourcepath/mapping/coordinates.cpp\
+           $$sourcepath/mapping/connectorinfo.cpp\
+           $$sourcepath/mapping/connector.cpp\
+           $$sourcepath/mapping/chip.cpp\
+           $$sourcepath/mapping/chamber.cpp\
+           $$sourcepath/mapping/map_handler.cpp
+           
 
 HEADERS  += $$includepath/mainwindow.h\
             $$includepath/data_handler.h\
             $$includepath/daq_server.h\
             $$includepath/event_builder.h\
-            $$includepath/bit_manip.h
+            $$includepath/bit_manip.h\
+            # monitoring
+            $$includepath/monitoring/OnlineMonTool.h\
+            # mapping
+            $$includepath/mapping/readout.h\
+            $$includepath/mapping/multilayer.h\
+            $$includepath/mapping/layer.h\
+            $$includepath/mapping/febconfig.h\
+            $$includepath/mapping/feb.h\
+            $$includepath/mapping/element.h\
+            $$includepath/mapping/detectorconfig.h\
+            $$includepath/mapping/daqconfig.h\
+            $$includepath/mapping/coordinates.h\
+            $$includepath/mapping/connectorinfo.h\
+            $$includepath/mapping/connector.h\
+            $$includepath/mapping/chip.h\
+            $$includepath/mapping/chamber.h\
+            $$includepath/mapping/map_handler.h
 
 FORMS    += $$sourcepath/mainwindow.ui

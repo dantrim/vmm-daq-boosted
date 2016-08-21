@@ -22,6 +22,7 @@ using namespace std;
 
 DataHandler::DataHandler(QObject* parent) :
     QObject(parent),
+    m_dbg(false),
     m_output_dir(""),
     m_output_filename(""),
     m_output_fullfilename(""),
@@ -68,6 +69,32 @@ void DataHandler::setCalibrationRun(bool doit)
     m_is_calibration_run = doit;
 }
 
+void DataHandler::updateCalibrationState(double gain, int dacThreshold, int dacAmplitude,
+            double tp_skew, int peakTime)
+{
+    m_server->updateCalibrationState(gain, dacThreshold, dacAmplitude,
+                    tp_skew, peakTime);
+    if(dbg()) {
+        std::stringstream sx;
+        sx << " *** Updating calibration state *** \n"
+            << "  > gain             : " << gain << " mV/fC\n"
+            << "  > dac threshold    : " << dacThreshold << " cts\n"
+            << "  > dac amplitude    : " << dacAmplitude << " cts\n"
+            << "  > tp skew          : " << tp_skew << " ns\n"
+            << "  > peak time        : " << peakTime << " ns";
+        std::cout << sx.str() << std::endl;
+    }
+}
+void DataHandler::setCalibrationChannel(int channel)
+{
+
+    if(dbg()) {
+        std::cout << "DataHandler::setCalibrationChannel    Setting calibration channel to " << channel << std::endl;
+    }
+    m_server->setCalibrationChannel(channel);
+
+}
+
 void DataHandler::initialize()
 {
     cout << "DataHandler::initialize" << endl;
@@ -98,6 +125,19 @@ bool DataHandler::initializeRun(bool writeNtuple_, std::string output_dir, int e
 
     return true;
 }
+
+void DataHandler::setMMFE8(bool do_mmfe8)
+{
+    m_server->setMMFE8(do_mmfe8);
+}
+
+void DataHandler::fillRunProperties(double gain, int tacSlope, int peakTime, int dac_threshold,
+            int dac_amplitude, int angle, double tp_skew)
+{
+    m_server->fillRunProperties(gain, tacSlope, peakTime, dac_threshold, dac_amplitude,
+                    angle, tp_skew);
+}
+
 void DataHandler::startGathering()
 {
     m_server->listen();
@@ -118,9 +158,8 @@ void DataHandler::endRun()
         if(m_server->is_stopped()) break;
         std::cout << "waiting for server to stop" << std::endl;
     }
-    if(/*writeNtuple*/ true) {
+    if(writeNtuple())
         m_server->write_output();
-    }
 }
 
 bool DataHandler::setOutputFile(std::string out_dir)

@@ -71,6 +71,7 @@ void MainWindow::startRun()
         std::cout << "VMMDAQ INFO    Unable to start run" << std::endl;
         return;
     }
+    m_dataHandler->fillRunProperties(3, 100, 80, 230, 300, 30, 3.125);
     m_dataHandler->startGathering();
 }
 

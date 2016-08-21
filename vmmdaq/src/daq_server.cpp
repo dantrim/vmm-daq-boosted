@@ -32,11 +32,21 @@ void DaqServer::setDoMonitoring(bool do_mon)
 }
 void DaqServer::setIgnore16(bool ignore_16)
 {
-    #warning set up ignore 16 flag
+    m_event_builder->setIgnore16(ignore_16);
 }
 void DaqServer::setCalibrationRun(bool is_calib_run)
 {
-    #warning set up calibration run flag
+    m_event_builder->setCalibrationRun(is_calib_run);
+}
+
+void DaqServer::setCalibrationChannel(int channel)
+{
+    m_event_builder->setCalibrationChannel(channel);
+}
+void DaqServer::updateCalibrationState(double gain, int dacThreshold, int dacAmplitude,
+            double tp_skew, int peakTime)
+{
+    m_event_builder->updateCalibrationState(gain, dacThreshold, dacAmplitude, tp_skew, peakTime);
 }
 
 
@@ -95,6 +105,12 @@ void WorkerThread(boost::shared_ptr< boost::asio::io_service> io_service)
     std::cout << "DaqServer::WorkerThread    listening finish [" << boost::this_thread::get_id() << "]" << std::endl;
     global_stream_lock.unlock();
 
+}
+void DaqServer::fillRunProperties(double gain, int tac_slope, int peak_time, int dac_threshold,
+        int dac_amplitude, int angle, double tp_skew)
+{
+    m_event_builder->fillRunProperties(gain, tac_slope, peak_time, dac_threshold,
+                            dac_amplitude, angle, tp_skew);
 }
 
 void DaqServer::listen()

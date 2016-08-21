@@ -24,11 +24,11 @@ boost::mutex stream_lock;
 
 EventBuilder::EventBuilder() :
     n_push_back(0),
-    m_filling_data(false),
     m_output_rootfilename(""),
     m_run_number(0),
     m_writeNtuple(false),
     m_calibRun(false),
+    m_calib_channel(-1),
     n_daqCount(0),
     //n_daqCount(new int()),
     m_daqRootFile(NULL),
@@ -85,7 +85,7 @@ void EventBuilder::setupOutputTrees()
 
         // run properties
         m_runProperties_tree = new TTree("run_properties", "run_properties");
-        br_runNumber            = m_runProperties_tree->Branch("runNumber", &m_runNumber);
+        br_runNumber            = m_runProperties_tree->Branch("runNumber", &m_run_number);
         br_gain                 = m_runProperties_tree->Branch("gain", &m_gain); 
         br_tacSlope             = m_runProperties_tree->Branch("tacSlope", &m_tacSlope);
         br_peakTime             = m_runProperties_tree->Branch("peakTime", &m_peakTime);
@@ -135,7 +135,6 @@ void EventBuilder::setupOutputTrees()
 void EventBuilder::clearData()
 {
     m_gain              = -999;
-    m_runNumber         = -999;
     m_tacSlope          = -999;
     m_peakTime          = -999;
     m_dacCounts         = -999;
@@ -214,6 +213,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
     std::vector< std::vector<int> > _channelId_tree;
     std::vector< std::vector<int> > _febChannelId_tree;
     std::vector< std::vector<int> > _mappedChannelId_tree;
+    std::vector< std::vector<int> > _neighbor_tree;
 
 
 
@@ -243,6 +243,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         std::vector<int> _channelId;
         std::vector<int> _febChannelId;
         std::vector<int> _mappedChannelId;
+        std::vector<int> _neighbor;
 
         boost::dynamic_bitset<> full_event_data(32*datagram_vector.size(), 0);
         for(int i = 0; i < (int)datagram_vector.size(); i++) {
@@ -279,6 +280,11 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
 
             // ----------- pdo ----------- //
             uint32_t pdo = (data0 & 0x3ff);
+            boost::dynamic_bitset<> ignore16_mask(32, 0xf);
+            boost::dynamic_bitset<> pdo_bits(32, pdo);
+            if(ignore16()) {
+                if( (ignore16_mask & pdo_bits).to_ulong() == 0 ) pdo = 1025;
+            }
             _pdo.push_back(pdo);
 
             // ------ gray (bcid) -------- //
@@ -304,6 +310,18 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             // ------  vmm channel ------ //
             uint32_t vmm_channel = (data1 & 0xfc) >> 2;
             _channelId.push_back(vmm_channel);
+
+            if(calibrationRun()) {
+                if(m_calib_channel < 0) {
+                    stream_lock.lock();
+                    std::cout << "EventBuilder::decode_event    Channel for calibration not set. Will store as 0." << std::endl;
+                    stream_lock.unlock();
+                    _neighbor.push_back(0);
+                }
+                else {
+                    _neighbor.push_back(!(m_calib_channel == vmm_channel));
+                }
+            }
 
             #warning still need to add mapping to get mapped channels
             //std::vector<int> _febChannelId;
@@ -337,6 +355,9 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             _bcid_tree.push_back(_bcid);
             _grayDecoded_tree.push_back(_grayDecoded);
             _channelId_tree.push_back(_channelId);
+
+            if(calibrationRun())
+                _neighbor_tree.push_back(_neighbor);
         }
 
 
@@ -366,6 +387,8 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_grayDecoded.clear();
                 m_channelId.clear();
 
+                m_neighbor_calib.clear();
+
                 ////////////////////////////////////////////////////
                 // assign the tree variables
                 ////////////////////////////////////////////////////
@@ -384,7 +407,9 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_bcid = _bcid_tree;
                 m_grayDecoded = _grayDecoded_tree;
                 m_channelId = _channelId_tree;
-        
+
+                if(calibrationRun())
+                    m_neighbor_calib = _neighbor_tree; 
 
                 //////////////////////////////////////////////
                 // fill the tree branches
@@ -607,6 +632,8 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                 if(writeNtuple()) {
                     boost::unique_lock<boost::timed_mutex> lock(*m_data_mutex, boost::try_to_lock);
                     if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
+                        stream_lock.lock();
+                        stream_lock.unlock();
 
                         m_art.push_back(art1);
                         m_art.push_back(art2);
@@ -627,9 +654,6 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
     } // != fafafafa
 
     if(frame_counter == 0xfafafafa) {
-        stream_lock.lock();
-        std::cout << "[" << boost::this_thread::get_id() << "]   fafafafa reached" << std::endl;
-        stream_lock.unlock();
 
         if(writeNtuple()) {
 
@@ -683,6 +707,7 @@ void EventBuilder::fill_event()
         
         m_daqRootFile->cd();
         m_vmm_tree->Fill();
+        std::cout << "m_art size: " << m_art.size() << std::endl;
         m_art_tree->Fill();
     }
     
@@ -703,5 +728,14 @@ void EventBuilder::write_output()
         std::cout << "\nEventBuilder::write_output    Run " << m_run_number << " stored in file: " << m_output_rootfilename << "\n" << std::endl;
         stream_lock.unlock();
     }
+}
+void EventBuilder::updateCalibrationState(double gain, int dacThreshold, int dacAmplitude,
+                                double tp_skew, int peakTime)
+{
+    m_gain_calib = gain;
+    m_dacCounts_calib = dacThreshold;
+    m_pulserCounts_calib = dacAmplitude;
+    m_tpSkew_calib = tp_skew;
+    m_peakTime_calib = peakTime;
 }
 

@@ -12,6 +12,10 @@
 #include <boost/array.hpp>
 #include <boost/thread.hpp>
 
+//nsw
+class MapHandler;
+class OnlineMonTool;
+
 //ROOT
 class TFile;
 class TTree;
@@ -26,8 +30,18 @@ class EventBuilder
         EventBuilder();
         virtual ~EventBuilder(){};
 
+        // load the mapping tool
+        void loadMappingTool(MapHandler& maptool);
+        MapHandler& mapHandler() { return *m_mapHandler; }
+
+        // load the monitoring tool
+        void loadMonitoringTool(OnlineMonTool& montool);
+        OnlineMonTool& monTool() { return *m_monTool; }
+        void setMonitoringStatus(bool status);
+        bool monitoring() { return m_monitoringStatus; }
+
         // initialize the output file and trees
-        bool init(bool writeNtuple, std::string filename, int run_number);
+        bool initializeRun(bool writeNtuple, std::string filename, int run_number);
 
         void setIgnore16(bool ignore) { m_ignore16 = ignore; };
         void setCalibrationRun(bool is_calib) { m_calibRun = is_calib; }
@@ -67,6 +81,14 @@ class EventBuilder
         int n_push_back;
 
     private :
+
+        // mapping
+        MapHandler* m_mapHandler;
+
+        // online monitoring tool
+        OnlineMonTool* m_monTool;
+        bool m_monitoringStatus;
+
         std::string m_output_rootfilename;
         int m_run_number;
 
@@ -87,7 +109,6 @@ class EventBuilder
         boost::shared_ptr<boost::condition_variable_any> m_event_fill_condition;
         //boost::condition_variable_any m_event_fill_condition;
         
-
 
         // the file to hold the output data ntuple
         TFile* m_daqRootFile;

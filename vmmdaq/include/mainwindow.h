@@ -31,6 +31,8 @@ public slots :
     void badOutputDir();
     void resetCounter();
     void updateCounts(int);
+    void loadDAQconfiguration();
+    void updateMonitoringState();
 };
 
 #endif // MAINWINDOW_H

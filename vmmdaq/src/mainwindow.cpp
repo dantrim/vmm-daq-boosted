@@ -31,6 +31,10 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(m_dataHandler, SIGNAL(updateCountsSend(int)), this, SLOT(updateCounts(int)));
 
+    connect(ui->loadDAQ_button, SIGNAL(clicked()), this, SLOT(loadDAQconfiguration()));
+
+    connect(ui->loadMon_button, SIGNAL(clicked()), this, SLOT(updateMonitoringState()));
+
 
 }
 
@@ -39,6 +43,33 @@ MainWindow::~MainWindow()
     delete ui;
     delete m_dataHandler;
 }
+
+void MainWindow::loadDAQconfiguration()
+{
+    bool ok = false;
+    std::string filename = "/Users/dantrim/workarea/NSW/vmm-daq-boosted/vmmdaq/readout_configuration/DAQ_config_TZ.xml";
+    ok = m_dataHandler->loadMapping(filename);
+
+    if(ok) {
+        std::cout << "DAQ setup loaded successfully" << std::endl;
+        ui->daqXml_text->setText(QString::fromStdString(filename));
+    }
+    else {
+        std::cout << "DAQ setup unabled to be loaded" << std::endl;
+    }
+}
+
+void MainWindow::updateMonitoringState()
+{
+    if(ui->loadMon_button->isChecked()) {
+        m_dataHandler->setupMonitoring(true);
+    }
+    else {
+        m_dataHandler->setupMonitoring(false);
+    }
+}
+
+
 
 void MainWindow::updateCounts(int counts)
 {

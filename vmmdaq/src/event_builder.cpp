@@ -20,10 +20,17 @@
 #include "TTree.h"
 #include "TBranch.h"
 
+//nsw
+#include "map_handler.h"
+#include "OnlineMonTool.h"
+
 boost::mutex stream_lock;
 
 EventBuilder::EventBuilder() :
     n_push_back(0),
+    m_mapHandler(NULL),
+    m_monTool(NULL),
+    m_monitoringStatus(false),
     m_output_rootfilename(""),
     m_run_number(0),
     m_writeNtuple(false),
@@ -38,7 +45,24 @@ EventBuilder::EventBuilder() :
 {
 }
 
-bool EventBuilder::init(bool writeNtuple_, std::string filename, int run_number)
+void EventBuilder::loadMappingTool(MapHandler& maptool)
+{
+    m_mapHandler = &maptool;
+    std::cout << "EventBuilder::loadMappingTool    Mapping tool loaded. Maps built? " << (mapHandler().mapLoaded() ? "YES" : "NO") << std::endl;
+}
+
+void EventBuilder::loadMonitoringTool(OnlineMonTool& montool)
+{
+    m_monTool = &montool;
+    std::cout << "EventBuilder::loadMonitoringTool    Monitoring tool loaded" << std::endl;
+}
+void EventBuilder::setMonitoringStatus(bool status)
+{
+    m_monitoringStatus = status;
+    std::cout << "EventBuilder::setMonitoringStatus    Monitoring status: " << (m_monitoringStatus ? "TRUE" : "FALSE") << std::endl;
+}
+
+bool EventBuilder::initializeRun(bool writeNtuple_, std::string filename, int run_number)
 {
     m_writeNtuple = writeNtuple_;
     if(writeNtuple())
@@ -215,7 +239,10 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
     std::vector< std::vector<int> > _mappedChannelId_tree;
     std::vector< std::vector<int> > _neighbor_tree;
 
-
+    // get the board id from the packet ip
+    std::string boardId = "";
+    if(mapHandler().mapLoaded())
+        boardId = mapHandler().boardIDfromIP(ip_string);
 
 //    std::cout << "EventBuilder::decode_event    Incoming packet: " << datagram.data() << "  from: " << ip_string << std::endl;
 
@@ -261,7 +288,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         if(true /*dbg*/) {
             std::stringstream sx;
             sx << "********************************************************\n"
-               << " Data from board #  : MAPPING NOT YET ADDED \n"
+               << " Data from board #  : " << (boardId=="" ? "mapping not loaded" : boardId) << "\n"
                << "   > IP             : " << ip_string << "\n"
                << "   > VMM ID         : " << vmm_id << "\n"
                << "   > Data           : " << full_event_data << "\n"
@@ -311,6 +338,27 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             uint32_t vmm_channel = (data1 & 0xfc) >> 2;
             _channelId.push_back(vmm_channel);
 
+            uint32_t mapped_channel = -1;
+            uint32_t feb_channel_no = -1;
+            //std::cout << "HARD CODING BOARD ID" << std::endl;
+            //boardId = "1";
+            //std::string vmm_id_str = "5";
+            //std::string vmm_chan_str = "20";
+            if(mapHandler().mapLoaded()) {
+                if(!(boardId=="")) {
+                    //mapped_channel = mapHandler().elementStripNumber(boardId, vmm_id_str, vmm_chan_str);
+                    //feb_channel_no = mapHandler().febChannel(boardId, stoi(vmm_id_str), stoi(vmm_chan_str));
+                    std::stringstream vmm_id_str;
+                    std::stringstream vmm_chan_str;
+                    vmm_id_str << vmm_id;
+                    vmm_chan_str << vmm_channel;
+                    mapped_channel = mapHandler().elementStripNumber(boardId, vmm_id_str.str(), vmm_chan_str.str());
+                    feb_channel_no = mapHandler().febChannel(boardId, vmm_id, vmm_channel);
+                }
+            }
+            _mappedChannelId.push_back(mapped_channel);
+            _febChannelId.push_back(feb_channel_no);
+
             if(calibrationRun()) {
                 if(m_calib_channel < 0) {
                     stream_lock.lock();
@@ -323,10 +371,6 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 }
             }
 
-            #warning still need to add mapping to get mapped channels
-            //std::vector<int> _febChannelId;
-            //std::vector<int> _mappedChannelId;
-
             if(true /*verbose*/) {
                 std::stringstream sx;
                 sx << "[" << counter << ", " << i << "] pdo   : " <<  (pdo) <<     "    tdo  : " << tdo << "\n"
@@ -337,6 +381,22 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 stream_lock.unlock();
             }
 
+            // online monitoring
+            if(monitoring() && mapHandler().mapLoaded()) {
+                if(rand()%50==0) {
+                    std::stringstream monitoring_string;
+                    monitoring_string << mapHandler().getChipName(stoi(boardId), vmm_id)
+                                      << " " << vmm_channel
+                                      << " " << pdo
+                                      << " " << tdo
+                                      << gray;
+                    stream_lock.lock();
+                    std::cout << "monitoring string: " << monitoring_string.str() << std::endl;
+                    stream_lock.unlock();
+                    m_monTool->send(monitoring_string.str());
+                }
+            }
+
             // move 2*32 bits forward 
             i += 2;
         }
@@ -344,6 +404,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
         //fill
         if(writeNtuple()) {
             _chipId_tree.push_back(vmm_id);
+            _boardId_tree.push_back( (boardId=="" ? -1 : stoi(boardId)));
             _eventSize_tree.push_back(num_bytes);
             _trigTimeStamp_tree.push_back(trig_timestamp);
             _trigCounter_tree.push_back(trig_counter);
@@ -355,6 +416,8 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
             _bcid_tree.push_back(_bcid);
             _grayDecoded_tree.push_back(_grayDecoded);
             _channelId_tree.push_back(_channelId);
+            _mappedChannelId_tree.push_back(_mappedChannelId);
+            _febChannelId_tree.push_back(_febChannelId);
 
             if(calibrationRun())
                 _neighbor_tree.push_back(_neighbor);
@@ -375,6 +438,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 // clear the global tree variables
                 ////////////////////////////////////////////////////
                 m_chipId.clear();
+                m_boardId.clear();
                 m_triggerTimeStamp.clear();
                 m_triggerCounter.clear();
                 m_eventSize.clear();
@@ -386,6 +450,8 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_bcid.clear();
                 m_grayDecoded.clear();
                 m_channelId.clear();
+                m_mappedChannelId.clear();
+                m_febChannelId.clear();
 
                 m_neighbor_calib.clear();
 
@@ -396,6 +462,7 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_eventNumberFAFA = n_push_back;
 
                 m_chipId = _chipId_tree;
+                m_boardId = _boardId_tree;
                 m_triggerTimeStamp = _trigTimeStamp_tree;
                 m_triggerCounter = _trigCounter_tree;
                 m_eventSize = _eventSize_tree;
@@ -407,6 +474,8 @@ void EventBuilder::decode_event(boost::array<uint32_t, MAXBUFLEN>& datagram, siz
                 m_bcid = _bcid_tree;
                 m_grayDecoded = _grayDecoded_tree;
                 m_channelId = _channelId_tree;
+                m_mappedChannelId = _mappedChannelId_tree;
+                m_febChannelId = _febChannelId_tree;
 
                 if(calibrationRun())
                     m_neighbor_calib = _neighbor_tree; 
@@ -460,6 +529,11 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
     std::cout << "full mini2 event data: " << full_event_data << "  size: " << full_event_data.size() /32 << std::endl;
     stream_lock.unlock();
 
+    // get the board id from the packet ip
+    std::string boardId = "";
+    if(mapHandler().mapLoaded())
+        boardId = mapHandler().boardIDfromIP(ip_string);
+
     uint32_t frame_counter = datagram_vector.at(0);
 
     //////////////////////////////////////////////////////////
@@ -499,7 +573,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
             if(true /*dbg*/) {
                 std::stringstream sx;
                 sx << "********************************************************\n"
-                   << " Data from board #  : MAPPING NOT YET ADDED \n" 
+                   << " Data from board #  : " << (boardId == "" ? "mapping not loaded" : boardId) << "\n" 
                    << "   > IP             : " << ip_string << "\n"
                    << "   > VMM ID         : " << vmm_id << "\n" 
                    << "   > Data           : " << full_event_data << "\n"
@@ -540,6 +614,21 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                 uint32_t vmm_channel = ( (data1 >> 24).to_ulong() & 0xfc) >> 2;
                 _channelId.push_back(vmm_channel);
 
+                uint32_t mapped_channel = -1;
+                uint32_t feb_channel_no = -1;
+                if(mapHandler().mapLoaded()) {
+                    if(!(boardId=="")) {
+                        std::stringstream vmm_id_str;
+                        std::stringstream vmm_chan_str;
+                        vmm_id_str << vmm_id;
+                        vmm_chan_str << vmm_id;
+                        mapped_channel = mapHandler().elementStripNumber(boardId, vmm_id_str.str(), vmm_chan_str.str());
+                        feb_channel_no = mapHandler().febChannel(boardId, vmm_id, vmm_channel);
+                    }
+                }
+                _mappedChannelId.push_back(mapped_channel);
+                _febChannelId.push_back(feb_channel_no);
+
                 // ---------------- pdo --------------- //
                 boost::dynamic_bitset<> pdo_bits(data0.size(), 0);
                 pdo_bits = data0 & db_3ff;
@@ -573,6 +662,23 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                     stream_lock.unlock();
                 }
 
+                // online monitoring
+                if(monitoring() && mapHandler().mapLoaded()) {
+                    if(rand()%50==0) {
+                        std::stringstream monitoring_string;
+                        monitoring_string << mapHandler().getChipName(stoi(boardId), vmm_id)
+                                          << " " << vmm_channel
+                                          << " " << pdo
+                                          << " " << tdo
+                                          << bcid;
+                        stream_lock.lock();
+                        std::cout << "monitoring string: " << monitoring_string.str() << std::endl;
+                        stream_lock.unlock();
+                        m_monTool->send(monitoring_string.str());
+                    }
+                }
+
+
             } // looping over vmm2 channels
 
             //fill
@@ -581,6 +687,7 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                 if(lock.owns_lock() || lock.try_lock_for(boost::chrono::milliseconds(100))) {
 
                     m_chipId.push_back(vmm_id);
+                    m_boardId.push_back( (boardId == "" ? -1 : stoi(boardId)) );
                     m_triggerTimeStamp.push_back(trig_timestamp);
                     m_triggerCounter.push_back(trig_counter);
                     m_eventSize.push_back(num_bytes);
@@ -592,6 +699,9 @@ void EventBuilder::decode_event_mini2(boost::array<uint32_t, MAXBUFLEN>& datagra
                     m_bcid.push_back(_bcid);
                     m_grayDecoded.push_back(_grayDecoded);
                     m_channelId.push_back(_channelId);
+                    m_mappedChannelId.push_back(_mappedChannelId);
+                    m_febChannelId.push_back(_febChannelId);
+                    
 
                     boost::timed_mutex *m = lock.release();
                     m->unlock();

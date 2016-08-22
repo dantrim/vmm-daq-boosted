@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>391</width>
-    <height>186</height>
+    <width>447</width>
+    <height>219</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -183,13 +183,52 @@
      <string>write out</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="loadDAQ_button">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>120</y>
+      <width>115</width>
+      <height>32</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Load DAQ</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="daqXml_text">
+    <property name="geometry">
+     <rect>
+      <x>120</x>
+      <y>123</y>
+      <width>301</width>
+      <height>21</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="loadMon_button">
+    <property name="geometry">
+     <rect>
+      <x>370</x>
+      <y>90</y>
+      <width>71</width>
+      <height>32</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>MON</string>
+    </property>
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>391</width>
+     <width>447</width>
      <height>22</height>
     </rect>
    </property>

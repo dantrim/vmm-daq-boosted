@@ -6,6 +6,9 @@
 //nsw
 #include "daq_server.h"
 
+//boost
+#include <boost/shared_ptr.hpp>
+
 //std/stdl
 #include <iostream>
 
@@ -25,8 +28,18 @@ class DataHandler : public QObject
 
         void initialize();
         bool initializeRun(bool writeNtuple, std::string dir, int events_to_process, bool doMini2=false);
-        void setMMFE8(bool do_mmfe8);
 
+        // load the DAQ mapping
+        bool loadMapping(std::string filename);
+        MapHandler& mapHandler() { return *m_mapHandler; }
+        bool mappingOK() { return m_mappingSetup; }
+        std::string getFirstIP();
+        int getNumberOfFecs();
+
+        // setup the online monitoring
+        void setupMonitoring(bool doit);
+
+        void setMMFE8(bool do_mmfe8);
 
         void fillRunProperties(double gain, int tac_slope, int peak_time, int dac_threshold,
                 int dac_amplitude, int angle, double tp_skew);
@@ -61,9 +74,11 @@ class DataHandler : public QObject
 
         // tool for handling online monitoring
         OnlineMonTool* m_monTool;
+        bool m_monitoringSetup;
 
         // tool for handling the data mapping
         MapHandler* m_mapHandler;
+        bool m_mappingSetup;
 
         int times_updated;
 

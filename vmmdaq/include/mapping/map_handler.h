@@ -44,6 +44,9 @@ class MapHandler : public QObject
         // from the XML build the FEB channel to detector element mapping
         void buildMapping();
 
+        // map has been loaded
+        bool mapLoaded() { return m_map_loaded; }
+
         // get the board ID from the packet IP
         std::string boardIDfromIP(std::string ip_string);
 

@@ -13,6 +13,8 @@
 
 //nsw
 #include "event_builder.h"
+class MapHandler;
+class OnlineMonTool;
 
 //#define MAXBUFLEN 65507
 
@@ -25,7 +27,14 @@ class DaqServer : public QObject
         explicit DaqServer(QObject *parent=0);
         virtual ~DaqServer(){};
 
-        bool init(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2=false);
+        void loadMappingTool(MapHandler& maptool);
+
+        void loadMonitoringTool(OnlineMonTool& montool);
+        void setMonitoringStatus(bool status);
+
+        void initialize();
+
+        bool initializeRun(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2=false);
 
         void setMMFE8(bool do_mmfe8) { m_mini2 = !do_mmfe8; }
 

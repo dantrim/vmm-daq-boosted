@@ -19,6 +19,10 @@ using namespace std;
 #include "TROOT.h"
 #include "TFile.h"
 
+//nsw
+#include "map_handler.h"
+#include "OnlineMonTool.h"
+
 
 DataHandler::DataHandler(QObject* parent) :
     QObject(parent),
@@ -33,6 +37,9 @@ DataHandler::DataHandler(QObject* parent) :
     m_ignore16(false),
     m_is_calibration_run(false),
     m_server(NULL),
+    m_monTool(NULL),
+    m_monitoringSetup(false),
+    m_mapHandler(NULL),
     times_updated(0)
 {
     cout << "DataHandler::DataHandler()" << endl;
@@ -104,9 +111,80 @@ void DataHandler::initialize()
         delete m_server;
     }
     m_server = new DaqServer();
+    m_server->initialize();
     // stop data taking when the event count is reached
     connect(m_server, SIGNAL(eventCountReached()), this, SLOT(endRun()));
     connect(m_server, SIGNAL(updateCounts(int)), this, SLOT(updateCounts(int)));
+}
+
+bool DataHandler::loadMapping(std::string daq_xml_file)
+{
+    if(m_mapHandler) {
+        delete m_mapHandler;
+    }
+    m_mapHandler = new MapHandler();
+    bool ok = m_mapHandler->loadDaqConfiguration(daq_xml_file);
+    if(ok) {
+        m_mapHandler->buildMapping();
+        if(m_mapHandler->mapLoaded())
+            m_server->loadMappingTool(*m_mapHandler);
+        else {
+            ok = false;
+            std::cout << "DataHandler::loadMapping    ERROR loading map!" << std::endl;
+        }
+    }
+
+    m_mappingSetup = ok;
+
+    return ok;
+}
+
+std::string DataHandler::getFirstIP()
+{
+    std::string out = "";
+    if(mapHandler().mapLoaded()) {
+        out = mapHandler().firstIP();
+    }
+    return out;
+}
+
+int DataHandler::getNumberOfFecs()
+{
+    int nFecs = 0;
+    if(mapHandler().mapLoaded()) {
+        nFecs = mapHandler().config().febConfig().nFeb();
+    }
+    return nFecs;
+}
+
+void DataHandler::setupMonitoring(bool do_monitoring)
+{
+    if(do_monitoring) {
+        //if(!m_monitoringSetup) {
+            //if(m_monTool) delete m_monTool;
+            m_monTool = new OnlineMonTool();
+            bool ok = m_monTool->initialize();
+
+            if(ok) {
+                std::cout << "DataHandler::setupMonitoring    monitoring socket initialized" << std::endl;
+                m_monitoringSetup = true;
+                m_server->loadMonitoringTool(*m_monTool);
+                m_server->setMonitoringStatus(m_monitoringSetup);
+            }
+            else {
+                m_monitoringSetup = false;
+                m_server->setMonitoringStatus(m_monitoringSetup);
+                delete m_monTool;
+            }
+       // }
+    }
+    else {
+        if(m_monitoringSetup) {
+            m_monTool->closeMonitoringSocket();
+            m_monitoringSetup = false;
+            m_server->setMonitoringStatus(m_monitoringSetup);
+        }
+    }
 }
 
 bool DataHandler::initializeRun(bool writeNtuple_, std::string output_dir, int events_to_process, bool doMini2)
@@ -121,7 +199,7 @@ bool DataHandler::initializeRun(bool writeNtuple_, std::string output_dir, int e
     }
     m_writeNtuple = writeNtuple_;
 
-    if(!m_server->init(m_writeNtuple, m_output_fullfilename, m_current_run_number, events_to_process, doMini2)) return false;
+    if(!m_server->initializeRun(m_writeNtuple, m_output_fullfilename, m_current_run_number, events_to_process, doMini2)) return false;
 
     return true;
 }

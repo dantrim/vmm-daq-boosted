@@ -1,6 +1,9 @@
 #include "daq_server.h"
 #include <string>
 
+//nsw
+#include "map_handler.h"
+
 
 namespace ip = boost::asio::ip;
 
@@ -49,12 +52,31 @@ void DaqServer::updateCalibrationState(double gain, int dacThreshold, int dacAmp
     m_event_builder->updateCalibrationState(gain, dacThreshold, dacAmplitude, tp_skew, peakTime);
 }
 
+void DaqServer::loadMappingTool(MapHandler& maptool)
+{
+    m_event_builder->loadMappingTool(maptool);
+}
 
-bool DaqServer::init(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2)
+void DaqServer::loadMonitoringTool(OnlineMonTool& montool)
+{
+    m_event_builder->loadMonitoringTool(montool);
+}
+
+void DaqServer::setMonitoringStatus(bool status)
+{
+    m_event_builder->setMonitoringStatus(status);
+}
+
+void DaqServer::initialize()
+{
+    m_event_builder = boost::shared_ptr<EventBuilder>(new EventBuilder());
+}
+
+bool DaqServer::initializeRun(bool writeNtuple, std::string filename, int run_number, int num_events_to_process, bool do_mini2)
 {
     *m_continue_gathering = true;
 
-    std::cout << "DaqServer::init    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
+    std::cout << "DaqServer::initializeRun    [" << boost::this_thread::get_id() << "] for run " << run_number << std::endl;
 
     if(do_mini2) m_mini2 = true;
     else { m_mini2 = false; }
@@ -72,16 +94,13 @@ bool DaqServer::init(bool writeNtuple, std::string filename, int run_number, int
     m_io_service = boost::shared_ptr<boost::asio::io_service>(new boost::asio::io_service());
     m_idle_work = boost::shared_ptr<boost::asio::io_service::work>(new boost::asio::io_service::work(*m_io_service));
     m_strand = boost::shared_ptr<boost::asio::io_service::strand>(new boost::asio::io_service::strand(*m_io_service));
-
     m_socket = boost::shared_ptr<boost::asio::ip::udp::socket>(new ip::udp::socket(*m_io_service, ip::udp::endpoint(ip::udp::v4(), m_daq_port)));
 
-    m_event_builder = boost::shared_ptr<EventBuilder>(new EventBuilder());
-    if(!m_event_builder->init(writeNtuple, filename, run_number)) 
+    if(!m_event_builder->initializeRun(writeNtuple, filename, run_number)) 
         return false;
 
     // event filling conditions
     m_mutex = boost::shared_ptr<boost::timed_mutex>(new boost::timed_mutex());
-    std::cout << "server data mutex: " << m_mutex << std::endl;
     m_fill_condition = boost::shared_ptr<boost::condition_variable_any>(new boost::condition_variable_any());
     m_event_builder->get_sync_items(m_mutex, m_fill_condition);
 
@@ -89,7 +108,7 @@ bool DaqServer::init(bool writeNtuple, std::string filename, int run_number, int
     m_total_events_to_process = num_events_to_process; 
 
     if(!m_socket->is_open()) {
-        std::cout << "DaqServer::init    ERROR socket not setup at port: " << m_daq_port << std::endl;
+        std::cout << "DaqServer::initializeRun    ERROR socket not setup at port: " << m_daq_port << std::endl;
         return false;
     }
     return true;
